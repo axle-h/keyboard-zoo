@@ -4,19 +4,26 @@ Cross platform, physics based game for toddlers.
 Built for my one-year-old so she can non-destructively join in with me working from home
 (plus I wanted to do some cross-platform physics & graphics programming in modern C++).
 
-* Full screen & toddler safe - must force close via ⌘ + ⌥ + ESC. TODO what happens on Ubuntu & Windows?!
-* Random dynamic backgrounds
-* Each key press (smash) generates a letter or object & plays a sound
-* Objects are realistically simulated in a 2D physics model
-* After a few collisions, objects will explode into particles
-* All graphics & sounds are [easily replaceable](#custom-assets)
+* Full screen & toddler safe (currently only on mac, well sort of... prepare for screenshots 😂). On macos you must force close via ⌘ + ⌥ + ESC. *TODO implement todler safety on Windows & Linux platforms*.
+* Random dynamic backgrounds.
+* Each key press (smash) generates a letter, number or object & plays a sound. *TODO add the control keys, make sure all keys mapped correctly through SDL eg numpad*
+* Objects are realistically simulated in a 2D physics model.
+* After a few collisions, objects will explode into particles.
+* All graphics & sounds are [easily replaceable](#custom-assets), which is a good thing as most provided are absolutely terrible - pulled together as a POC in a single evening.
 
-![screenshot](screenshot.png)
+![cover](cover.jpg)
+
+> Note the [expensive keyboard](https://www.logitech.com/en-gb/products/keyboards/mx-keys-wireless-keyboard.html) getting baby-smashed... Yeah I wouldn't recommend that.
 
 ## Installing
 
-I haven't managed to get CMake to build nice installable bundles yet (I'm not a C++ developer!),
-so I'm afraid it's build from source only.
+Download & unpack the release for your platform.
+
+* **macos (Darwin)** Unzip & move the 'baby-smash' application to the Applications folder.
+* **Ubuntu/Debian** `sudo apt install ./baby-smash-*.deb` & run the 'Baby Smash' application
+* **Windows** Unzip & run, the binary is portable.
+
+On first load the app will appear to hang - it's decompressing the audio assets. *TODO add a loading splash screen*
 
 ## Building
 
@@ -56,7 +63,7 @@ cmake --build . --target baby-smash -- -j8
 
 To run:
 
-* **macos** Double click `baby-smash.app` in the Finder
+* **macos** Double click `baby-smash` in the Finder
 * **Ubuntu** `./baby-smash`
 * **Windows** `./baby-smash.exe`
 
