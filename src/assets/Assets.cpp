@@ -17,7 +17,7 @@ Assets::Assets(const std::shared_ptr<Config>& config, std::shared_ptr<Logger> lo
     if (std::find(VIDEO_EXTENSIONS.begin(), VIDEO_EXTENSIONS.end(), extension) == VIDEO_EXTENSIONS.end()) {
       continue;
     }
-    videos.push_back(entry.path());
+    videos.push_back(entry.path().string());
   }
 
   std::ifstream file(assetsPath / "sprites.json");
@@ -133,7 +133,7 @@ std::vector<AudioAsset> Assets::getAudioAssets() const {
       }
 
       auto filePath = path / fs::path(asset.getCompressedPath()).filename().replace_extension(".wav");
-      asset.setDecompressedPath(filePath);
+      asset.setDecompressedPath(filePath.string());
     }
     result.push_back(asset);
   }

@@ -41,7 +41,7 @@ sudo apt install build-essential cmake git libsdl2-dev libsdl2-gfx-dev libsdl2-i
 Use [MSYS2](https://www.msys2.org/#installation).
 
 ```bash
-pacman -S cmake git mingw-w64-x86_64-ffmpeg mingw-w64-x86_64-SDL2 mingw-w64-x86_64-SDL2_gfx mingw-w64-x86_64-SDL2_image
+pacman -S cmake git mingw-w64-x86_64-toolchain mingw-w64-x86_64-ffmpeg mingw-w64-x86_64-SDL2 mingw-w64-x86_64-SDL2_gfx mingw-w64-x86_64-SDL2_image
 ```
 
 ### Building
@@ -51,9 +51,19 @@ git clone https://github.com/axle-h/baby-smash
 cd baby-smash
 mkdir build && cd build
 cmake -D CMAKE_BUILD_TYPE=Release ..
-make -j8
-cd bin
-./baby-smash
+cmake --build . --target baby-smash -- -j8
+```
+
+To run:
+
+* **macos** Double click `baby-smash.app` in the Finder
+* **Ubuntu** `./baby-smash`
+* **Windows** `./baby-smash.exe`
+
+To package:
+
+```bash
+cmake --build . --target package
 ```
 
 ## Config
@@ -62,7 +72,7 @@ Config is stored in JSON.
 
 * **macos** `~/Library/Application Support/axle-h/baby-smash/config.json`
 * **Linux** `~/.local/share/axle-h/baby-smash/config.json`
-* **Windows** `%APPDATA%/axle-h/baby-smash/config.json`
+* **Windows** `~/AppData/Roaming/axle-h/baby-smash/config.json`
 
 ## Custom Assets
 

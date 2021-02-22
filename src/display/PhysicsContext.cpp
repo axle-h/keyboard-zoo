@@ -12,7 +12,7 @@ PhysicsContext::~PhysicsContext() {
   SDL_DestroySemaphore(lock);
 }
 
-uint physicsCallback(uint interval, void *params) {
+uint32 physicsCallback(uint32 interval, void *params) {
   auto context = (PhysicsContext *) params;
 
   auto lock = context->getLock();

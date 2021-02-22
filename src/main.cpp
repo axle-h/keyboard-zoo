@@ -1,12 +1,10 @@
 #include "assets/Assets.h"
-#include "config/Config.h"
 #include "display/Display.h"
-#include "logger/Logger.h"
 #include "timer/Timer.h"
 
-int main() {
+int main(int argv, char** args) {
   auto config = std::make_shared<Config>();
-  auto logger = std::make_shared<Logger>(config->getFilesystem().log);
+  auto logger = std::make_shared<Logger>(config->getFilesystem().log.string());
 
   try {
     auto timer = std::make_unique<Timer>();
@@ -22,5 +20,6 @@ int main() {
     return 0;
   } catch(std::exception& e) {
     logger->critical(e.what());
+    return 1;
   }
 }

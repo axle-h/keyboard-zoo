@@ -20,13 +20,13 @@ void VideoContext::nextVideo() {
   }
 }
 
-uint VideoContext::getInterval() const {
+uint32 VideoContext::getInterval() const {
   auto format = frameService->getVideoFormat();
-  auto interval = (uint) std::ceil(1000.f / format.framerate);
+  auto interval = (uint32) std::ceil(1000.f / format.framerate);
   return interval > 0 ? interval : 1;
 }
 
-uint VideoContext::update() {
+uint32 VideoContext::update() {
   if (!frameService->tryGetNext()) {
     nextVideo();
     if (!frameService->tryGetNext()) {
@@ -44,7 +44,7 @@ AVFrame *VideoContext::getFrame() const {
   return frameScaler->getScaledFrame();
 }
 
-uint updateVideoContextCallback(uint interval, void *params) {
+uint32 updateVideoContextCallback(uint32 interval, void *params) {
   auto context = (VideoContext *) params;
   return context->update();
 }

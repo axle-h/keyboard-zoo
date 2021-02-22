@@ -14,9 +14,9 @@ class VideoContext {
 
 public:
   VideoContext(std::shared_ptr<Assets> assets, Resolution resolution);
-  [[nodiscard]] uint getInterval() const;
-  uint update();
+  [[nodiscard]] uint32 getInterval() const;
+  uint32 update();
   [[nodiscard]] AVFrame *getFrame() const;
 };
 
-uint updateVideoContextCallback(uint interval, void *params);
+uint32 updateVideoContextCallback(uint32 interval, void *params);

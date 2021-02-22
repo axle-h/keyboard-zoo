@@ -61,7 +61,9 @@ FrameService::FrameService(const std::string path, enum AVMediaType type) : type
 
 FrameService::~FrameService() {
   av_frame_free(&frame);
-  av_packet_free(&pkt);
+  if (pkt->data != nullptr || pkt->buf != nullptr) {
+    av_packet_free(&pkt);
+  }
   avformat_close_input(&fmt_ctx);
   avcodec_close(dec_ctx);
 }

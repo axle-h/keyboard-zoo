@@ -20,6 +20,11 @@ AudioService::~AudioService() {
 }
 
 void AudioService::init() {
+#ifdef WIN32
+  // I don't know why this is needed, SDL on MINGW64 must be selecting some nop audio driver by default.
+  SDL_AudioInit("directsound");
+#endif
+
   initAudio();
 
   for (const auto& asset : assets->getAudioAssets()) {

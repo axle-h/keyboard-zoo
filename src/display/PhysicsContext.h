@@ -4,7 +4,7 @@
 #include "../input/InputState.h"
 #include "../physics/World.h"
 
-uint physicsCallback(uint interval, void *params);
+uint32 physicsCallback(uint32 interval, void *params);
 
 class PhysicsContext {
   SDL_semaphore *lock;
