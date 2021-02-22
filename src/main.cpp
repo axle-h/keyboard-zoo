@@ -4,16 +4,16 @@
 #include "logger/Logger.h"
 #include "timer/Timer.h"
 
-
 int main() {
-  auto logger = std::make_unique<Logger>();
+  auto config = std::make_shared<Config>();
+  auto logger = std::make_shared<Logger>(config->getFilesystem().log);
 
   try {
-    auto config = std::make_unique<Config>(logger.get());
-    auto timer =  std::make_unique<Timer>();
-    auto assets = std::make_unique<Assets>(config.get());
-    auto world = std::make_unique<World>(config.get(), assets.get());
-    auto display = std::make_unique<Display>(logger.get(), config.get(), assets.get(), world.get());
+    auto timer = std::make_unique<Timer>();
+    auto assets = std::make_shared<Assets>(config, logger);
+    auto audio = std::make_shared<AudioService>(assets, logger);
+    auto world = std::make_shared<World>(logger, config, assets);
+    auto display = std::make_shared<Display>(logger, config, assets, world, audio);
 
     while (display->next()) {
       timer->nextSleep();
@@ -23,5 +23,4 @@ int main() {
   } catch(std::exception& e) {
     logger->critical(e.what());
   }
-
 }

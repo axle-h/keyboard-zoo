@@ -37,17 +37,29 @@ export enum SpriteType {
   Image,
 }
 
+export interface Point {
+  x: number;
+  y: number;
+}
+
+export type Polygon = Point[];
+
+export function flattenPolygon(polygon: Polygon): number[] {
+  return polygon.map(p => [p.x, p.y]).reduce((x, y) => [...x, ...y]);
+}
+
 export interface Sprite {
   id: string;
   type: SpriteType;
   name: string;
   svg: string;
   colour: Colour;
-  polygons: number[][];
+  polygons: Polygon[];
   size: Dimensions;
 }
 
 export interface SpriteSheetEntry {
+  name: string;
   polygons: number[][];
   position: Point;
   size: Dimensions;

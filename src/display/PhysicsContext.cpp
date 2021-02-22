@@ -1,7 +1,7 @@
 #include "PhysicsContext.h"
-#include <SDL2/SDL_timer.h>
+#include <SDL.h>
 
-PhysicsContext::PhysicsContext(const InputState *input, World *world)
+PhysicsContext::PhysicsContext(InputState *input, World *world)
   : input(input), world(world) {
   lock = SDL_CreateSemaphore(1);
   timer = SDL_AddTimer(17, physicsCallback, this);

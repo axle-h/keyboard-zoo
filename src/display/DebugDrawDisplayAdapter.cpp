@@ -1,5 +1,6 @@
 #include "DebugDrawDisplayAdapter.h"
 
+#include <cmath>
 #include <SDL2_gfxPrimitives.h>
 
 DebugDrawDisplayAdapter::DebugDrawDisplayAdapter(SDL_Renderer *renderer, RenderConfig config)

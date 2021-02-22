@@ -1,19 +1,27 @@
 #pragma once
 
 #include "../config/Config.h"
+#include "../logger/Logger.h"
+#include "AudioAsset.h"
 #include "SpriteAsset.h"
 #include <map>
 
 class Assets {
-  std::vector<std::string> backgrounds;
-  std::map<std::string, std::vector<SpriteAsset>> characterSprites;
-  AssetConfig config;
+  const std::vector<std::string> VIDEO_EXTENSIONS = std::vector<std::string>{".mov", ".mp4"};
+  const std::vector<std::string> AUDIO_EXTENSIONS = std::vector<std::string>{".mp3", ".mp4", "m4a"};
+  std::shared_ptr<Logger> logger;
+  std::vector<std::string> videos;
+  std::map<std::string, std::vector<SpriteAsset>> sprites;
+  FilesystemConfig config;
 
 public:
-  explicit Assets(Config *config);
-  [[nodiscard]] const SpriteAsset* getCharacterSprite(char key) const;
+  Assets(const std::shared_ptr<Config>& config, std::shared_ptr<Logger> logger);
 
-  [[nodiscard]] bool supportsCharacterSprite(char key) const;
+  [[nodiscard]] const SpriteAsset *getSprite(char key) const;
 
-  [[nodiscard]] std::string getRandomBackground() const;
+  [[nodiscard]] bool supportsSprite(char key) const;
+
+  [[nodiscard]] std::string getRandomVideo() const;
+
+  [[nodiscard]] std::vector<AudioAsset> getAudioAssets() const;
 };

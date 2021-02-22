@@ -1,28 +1,22 @@
-#include <algorithm>
-#include <stdexcept>
-#include <SDL2/SDL_image.h>
-#include <SDL2_gfxPrimitives.h>
-#include "DebugDrawDisplayAdapter.h"
 #include "Display.h"
+#include "DebugDrawDisplayAdapter.h"
+#include <SDL2_gfxPrimitives.h>
+#include <SDL_image.h>
+#include <stdexcept>
+#include <utility>
 
-Display::Display(Logger *logger, Config *config, Assets *assets, World *world)
-    : assets(assets), logger(logger), config(config->getRender()), world(world) {
-  input = InputState{
-    .quit = false,
-    .up = false,
-    .down = false,
-    .left = false,
-    .right = false,
-    .keys = std::vector<char>(),
-  };
+Display::Display(std::shared_ptr<Logger> logger, const std::shared_ptr<Config> &config,
+                 const std::shared_ptr<Assets>& assets, const std::shared_ptr<World>& world, const std::shared_ptr<AudioService> &audio)
+    : assets(assets), logger(std::move(logger)), config(config->getRender()), world(world), audio(audio) {
+  input = std::make_shared<InputState>();
 
-  if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) < 0) {
+  if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_AUDIO) < 0) {
     throw std::runtime_error("Cannot initialise SDL");
   }
 
   auto resolution = Display::config.internalResolution;
 
-  window = SDL_CreateWindow("baby-smash",
+  window = SDL_CreateWindow(config->getTitle().c_str(),
                             SDL_WINDOWPOS_CENTERED,
                             SDL_WINDOWPOS_CENTERED,
                             resolution.width / 2, resolution.height / 2,
@@ -30,6 +24,26 @@ Display::Display(Logger *logger, Config *config, Assets *assets, World *world)
 
   if (!window) {
     throw std::runtime_error("Cannot create SDL window");
+  }
+
+  if (Display::config.fullScreen) {
+    auto targetDisplayMode = SDL_DisplayMode {
+      .format = 0,  // don't care
+      .w = resolution.width,
+      .h = resolution.height,
+      .refresh_rate = 0, // don't care
+      .driverdata   = 0, // initialize to 0
+    };
+
+    SDL_DisplayMode displayMode;
+    if (!SDL_GetClosestDisplayMode(0, &targetDisplayMode, &displayMode)) {
+      throw std::runtime_error("No suitable display mode");
+    }
+
+    Display::logger->info("Display mode {}x{} @{}hz", displayMode.w, displayMode.h, displayMode.refresh_rate);
+
+    SDL_SetWindowDisplayMode(window, &displayMode);
+    SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN);
   }
 
   renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE);
@@ -43,17 +57,23 @@ Display::Display(Logger *logger, Config *config, Assets *assets, World *world)
   backgroundTexture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_IYUV, SDL_TEXTUREACCESS_STREAMING, resolution.width, resolution.height);
   target = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, resolution.width, resolution.height);
 
-  auto image = IMG_Load("../../assets/sprites.png");
+  auto image = IMG_Load((config->getFilesystem().assets / "sprites.png").string().c_str());
+  if (!image) {
+    throw std::runtime_error("Cannot load sprite sheet");
+  }
   spriteSheet = SDL_CreateTextureFromSurface(renderer, image);
   SDL_FreeSurface(image);
 
-  background = std::make_unique<BackgroundContext>(assets, resolution);
-  backgroundTimerId = SDL_AddTimer(background->getInterval(), backgroundCallback, background.get());
+  background = std::make_unique<VideoContext>(assets, resolution);
+  backgroundTimerId = SDL_AddTimer(background->getInterval(), updateVideoContextCallback, background.get());
 
   debugDraw = std::make_unique<DebugDrawDisplayAdapter>(renderer, Display::config);
   world->setDebugDraw(debugDraw.get());
 
-  physics = std::make_unique<PhysicsContext>(&input, world);
+  physics = std::make_unique<PhysicsContext>(input.get(), world.get());
+
+  audio->init();
+  audio->nextMusic();
 }
 
 Display::~Display() {
@@ -67,39 +87,35 @@ Display::~Display() {
 }
 
 bool Display::next() {
+  auto quit = false;
+
   while (SDL_PollEvent(&event) == 1) {
     switch (event.type) {
       case SDL_KEYUP:
       case SDL_KEYDOWN:
-        if (assets->supportsCharacterSprite(event.key.keysym.sym)) {
-          auto begin = input.keys.begin(), end = input.keys.end();
-          auto it = std::find(begin, end, event.key.keysym.sym);
-
-          if (event.type == SDL_KEYDOWN && it == end) {
-            input.keys.push_back(event.key.keysym.sym);
-          } else if (event.type == SDL_KEYUP && it != end) {
-            input.keys.erase(it);
-          }
-        } else {
-          switch (event.key.keysym.sym) {
-            case SDLK_RIGHT:
-              input.right = event.type == SDL_KEYDOWN;
-              break;
-            case SDLK_LEFT:
-              input.left = event.type == SDL_KEYDOWN;
-              break;
-            case SDLK_UP:
-              input.up = event.type == SDL_KEYDOWN;
-              break;
-            case SDLK_DOWN:
-              input.down = event.type == SDL_KEYDOWN;
-              break;
-          }
+        switch (event.key.keysym.sym) {
+          case SDLK_RIGHT:
+            input->setRight(event.type == SDL_KEYDOWN);
+            break;
+          case SDLK_LEFT:
+            input->setLeft(event.type == SDL_KEYDOWN);
+            break;
+          case SDLK_UP:
+            input->setUp(event.type == SDL_KEYDOWN);
+            break;
+          case SDLK_DOWN:
+            input->setDown(event.type == SDL_KEYDOWN);
+            break;
+          default:
+            if (assets->supportsSprite(event.key.keysym.sym)) {
+              input->setKey(event.key.keysym.sym, event.type == SDL_KEYDOWN);
+            }
+            break;
         }
         break;
 
       case SDL_QUIT:
-        input.quit = true;
+        quit = true;
         break;
     }
   }
@@ -114,7 +130,7 @@ bool Display::next() {
   auto physicsLock = physics->getLock();
   if (SDL_SemWait(physicsLock) >= 0) {
     // we must sync updating and rendering physics state as a body could be destroyed as we're rendering it
-    // TODO we don't have to lock both of these completely, just the but where bodies or model data is deleted
+    // TODO we don't have to lock both of these completely, just the bit where bodies or model data is deleted
     drawWorld();
     SDL_SemPost(physicsLock);
   }
@@ -125,7 +141,7 @@ bool Display::next() {
   SDL_RenderCopyEx(renderer, target, nullptr, nullptr, 0, nullptr, SDL_FLIP_NONE);
   SDL_RenderPresent(renderer);
 
-  return !input.quit;
+  return !quit;
 }
 
 void Display::drawBackground() {
@@ -146,48 +162,61 @@ void Display::drawWorld() {
     world->debugDraw();
   }
 
-  for (const auto& sprite : world->getSprites()) {
+  for (const auto &sprite : world->getSprites()) {
     auto model = sprite.model;
     if (model->getDefinition()->getType() == ModelType_Ground) {
       // TODO render ground
       continue;
     }
 
-    auto angle = -(180 * sprite.angle / M_PIf32);
+    auto angle = -(180 * sprite.angle / M_PI);
     auto size = model->getSize();
 
     auto ratio = std::max(1.f, size.width / size.height);
-    auto rect = SDL_FRect {
+    auto rect = SDL_FRect{
       .x = X(sprite.position.x),
       .y = Y(sprite.position.y + ratio * size.height),
       .w = D(size.width),
       .h = D(size.height),
     };
     const auto asset = model->getAsset();
-    auto src = SDL_Rect {
-      .x = (int) asset->position.x,
-      .y = (int) asset->position.y,
-      .w = (int) asset->size.width,
-      .h = (int) asset->size.height
-    };
+    auto assetPosition = asset->getPosition();
+    auto assetSize = asset->getSize();
+    auto src = SDL_Rect{
+      .x = (int) assetPosition.x,
+      .y = (int) assetPosition.y,
+      .w = (int) assetSize.width,
+      .h = (int) assetSize.height};
 
     // TODO why does this even work?!
-    auto center = SDL_FPoint { .x = 0, .y = ratio * rect.h };
+    auto center = SDL_FPoint{.x = 0, .y = ratio * rect.h};
     SDL_RenderCopyExF(renderer, spriteSheet, &src, &rect, angle, &center, SDL_FLIP_NONE);
+
+    if (!model->isCreated()) {
+      model->setCreated();
+      audio->playCreateSound(asset->getName());
+    }
   }
 
-  for (const auto& destroyedSprite : world->getDestroyedSprites()) {
-    auto colour = destroyedSprite.model->getAsset()->colour;
-    auto alpha = 255 * std::min(1.f, destroyedSprite.percentRemaining * 10 / 3);
+  for (auto &explosion : world->getExplosions()) {
+    if (!explosion.isDestroyed()) {
+      explosion.setDestroyed();
+      audio->playDestroySound();
+    }
 
-    for (const auto& particle : destroyedSprite.particles) {
+    auto colour = explosion.getAsset()->getColour();
+    auto alpha = 255 * std::min(1.f, explosion.getPercent() * 10 / 3);
+
+    for (const auto &particle : explosion.getParticles()) {
       auto vertices = particle.getVertices();
-      Sint16 vx[3], vy[3];
-      for (auto i = 0; i < 3; i++) {
-        vx[i] = X(vertices.at(i).x);
-        vy[i] = Y(vertices.at(i).y);
+
+      Sint16 vx[vertices.size()], vy[vertices.size()];
+      for (auto i = 0; i < vertices.size(); i++) {
+        auto vertex = vertices.at(i);
+        vx[i] = (Sint16) std::round(X(vertex.x));
+        vy[i] = (Sint16) std::round(Y(vertex.y));
       }
-      filledPolygonRGBA(renderer, vx, vy, 3, colour.r, colour.g, colour.b, alpha);
+      filledPolygonRGBA(renderer, vx, vy, vertices.size(), colour.r, colour.g, colour.b, alpha);
     }
   }
 }

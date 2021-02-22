@@ -8,7 +8,7 @@ class Logger {
   std::shared_ptr<spd::logger> logger;
 
 public:
-  Logger();
+  explicit Logger(const std::string& path);
   ~Logger();
 
   template<typename T>

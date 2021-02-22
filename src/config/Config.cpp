@@ -1,20 +1,18 @@
 #include "Config.h"
+#include "BuildMeta.h"
 
+#include <SDL.h>
 #include <any>
 #include <fstream>
+#include <iostream>
 #include <nlohmann/json.hpp>
-#include <platform_folders.h>
+#include <sstream>
 #include <utility>
 
 namespace fs = std::filesystem;
 using json = nlohmann::json;
 
 const auto CONFIG_NAME = "config.json";
-
-fs::path getOptionsPath() {
-  // TODO get project name from cmake
-  return fs::path(sago::getConfigHome()) / "baby-smash";
-}
 
 class ValidationException : public std::exception {
   std::string message;
@@ -28,23 +26,23 @@ public:
     return ValidationException(ss.str());
   }
 
-  [[nodiscard]] const char *what() const _GLIBCXX_TXN_SAFE_DYN _GLIBCXX_NOTHROW override {
+  [[nodiscard]] const char* what() const noexcept override {
     return message.c_str();
   }
 };
 
-Config::Config(Logger *logger) : logger(logger) {
-  auto configDirectory = getOptionsPath();
-  if (!fs::exists(configDirectory) && !fs::create_directories(configDirectory)) {
-    logger->error("cannot create config directory {}", configDirectory.string());
-    throw std::exception();
-  }
+Config::Config() {
+  title = PROJECT_TITLE;
+  auto prefsPath = fs::path(SDL_GetPrefPath("axle-h", PROJECT_NAME));
 
-  auto configPath = configDirectory / CONFIG_NAME;
+  filesystem.assets = SDL_GetBasePath();
+  filesystem.log = prefsPath / "application.log";
+  filesystem.cache = prefsPath / "cache";
+
+  auto configPath = prefsPath / CONFIG_NAME;
   if (fs::exists(configPath) && read(configPath)) {
     validate();
   } else {
-    logger->info("writing default configuration to {}", configPath.string());
     defaults();
     write(configPath);
   }
@@ -57,16 +55,13 @@ bool Config::read(const std::filesystem::path &path) {
     file >> j;
 
     auto jWorld = j.at("world");
-    auto jAssets = j.at("assets");
     auto jRender = j.at("render");
 
     world = {
       .gravity = jWorld.at("gravity"),
     };
-    assets = {
-      .path = fs::path(jAssets.at("path")),
-    };
     render = {
+      .fullScreen = jRender.at("fullScreen"),
       .debugPhysics = jRender.at("debugPhysics"),
       .pixelsPerMeter = jRender.at("pixelsPerMeter"),
       .internalResolution = {
@@ -76,7 +71,7 @@ bool Config::read(const std::filesystem::path &path) {
     };
     return true;
   } catch(const std::exception& e) {
-    logger->error("invalid config {}", e.what());
+    std::cerr << "invalid config " << e.what() << std::endl;
     return false;
   }
 }
@@ -86,8 +81,8 @@ void Config::write(const std::filesystem::path &path) {
 
   json j = {
     {"world", {{"gravity", world.gravity}}},
-    {"assets", {{"path", assets.path}}},
     { "render", {
+      { "fullScreen", render.fullScreen },
       { "debugPhysics", render.debugPhysics },
       { "pixelsPerMeter", render.pixelsPerMeter },
       { "internalResolution", {
@@ -103,7 +98,7 @@ void Config::write(const std::filesystem::path &path) {
 
 void Config::defaults() {
   world.gravity = -1.f;
-  assets.path = fs::path("..") / "assets";
+  render.fullScreen = true;
   render.debugPhysics = false;
   render.pixelsPerMeter = 20.f;
   render.internalResolution = { 1920, 1080 };
@@ -119,11 +114,6 @@ template <class T> void between(const std::string& field, T value, T min, T max)
 
 void Config::validate() const {
   between("world.gravity", world.gravity, -20.f, 20.f);
-
-  if (fs::status(assets.path).type() != fs::file_type::directory) {
-    throw ValidationException::create("assets.path", "must be a directory", assets.path);
-  }
-
   between("render.pixelsPerMeter", render.pixelsPerMeter, 1.f, 50.f);
   between("render.internalResolution.width", render.internalResolution.width, 640, 3840);
   between("render.internalResolution.height", render.internalResolution.height, 480, 2160);

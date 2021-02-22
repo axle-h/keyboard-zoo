@@ -13,20 +13,39 @@ class Model {
   const SpriteAsset *asset;
   int collisions;
   std::unique_ptr<Debounce> debounce;
+  bool created = false;
 
 public:
   Model(ModelDefinition *definition, Dimensions size, const SpriteAsset *asset);
   ~Model();
 
-  [[nodiscard]] const Dimensions &getSize() const;
+  [[nodiscard]] const inline Dimensions &getSize() const {
+    return size;
+  }
 
-  void setSize(const Dimensions &size);
+  void inline setSize(const Dimensions &size) {
+    Model::size = size;
+  }
 
-  [[nodiscard]] ModelDefinition* getDefinition() const;
+  [[nodiscard]] inline ModelDefinition* getDefinition() const {
+    return definition;
+  }
 
-  [[nodiscard]] const SpriteAsset *getAsset() const;
+  [[nodiscard]] const inline SpriteAsset *getAsset() const {
+    return asset;
+  }
 
-  [[nodiscard]] int getCollisions() const;
+  [[nodiscard]] int inline getCollisions() const {
+    return collisions;
+  }
+
+  [[nodiscard]] bool inline isCreated() const {
+    return created;
+  }
+
+  void inline setCreated() {
+    Model::created = true;
+  }
 
   int recordCollision();
 };

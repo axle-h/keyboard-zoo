@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0.0
+Type=Application
+Name=Baby Smash
+Keywords=baby;smash;
+Exec=/usr/share/axle-h/baby-smash/baby-smash
+Icon=baby-smash
+Terminal=false
+Categories=Games;

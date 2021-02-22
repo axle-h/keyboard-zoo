@@ -4,15 +4,13 @@
 
 #include <algorithm>
 #include <box2d/box2d.h>
-#include <iostream>
+#include <utility>
 
 const int VELOCITY_ITERATIONS = 6;
 const int POSITION_ITERATIONS = 2;
 const int MAX_COLLISIONS = 5;
-auto const CHARACTER_SCALE = 1 / 75.f;
-auto const DIRECTION_FORCE = 200.f;
-auto const MAX_BODIES = 100;
-auto const DESTROYED_SPRITE_FRAMES = 60 * 1.5f;
+const auto CHARACTER_SCALE = 1 / 75.f;
+const auto DIRECTION_FORCE = 200.f;
 const auto MAX_PARTICLE_VELOCITY = 6;
 
 Sprite getSprite(b2Body *body) {
@@ -20,11 +18,11 @@ Sprite getSprite(b2Body *body) {
   auto angle = body->GetAngle();
 
   // normalise to -pi -> pi
-  while (angle >= M_PIf32) {
-    angle -= 2 * M_PIf32;
+  while (angle >= M_PI) {
+    angle -= 2 * M_PI;
   }
-  while (angle <= -M_PIf32) {
-    angle += 2 * M_PIf32;
+  while (angle <= -M_PI) {
+    angle += 2 * M_PI;
   }
 
   auto model = (Model *) body->GetUserData().pointer;
@@ -43,23 +41,10 @@ b2AABB getAABB(b2Body *body) {
   return aabb;
 }
 
-void ContactListener::BeginContact(b2Contact *contact) {
-  auto body1 = contact->GetFixtureA()->GetBody();
-  auto body2 = contact->GetFixtureB()->GetBody();
-
-  for (auto body : {body1, body2}) {
-    if (body->GetType() != b2_dynamicBody) {
-      continue;
-    }
-    auto model = (Model *) body->GetUserData().pointer;
-    model->recordCollision();
-  }
-}
-
-World::World(Config *config, Assets *assets)
-    : config(config->getWorld()), assets(assets), listener(nullptr) {
+World::World(std::shared_ptr<Logger> logger, const std::shared_ptr<Config> &config, std::shared_ptr<Assets> assets)
+    : config(config->getWorld()), assets(std::move(assets)), logger(std::move(logger)) {
   auto gravity = b2Vec2(0.0f, World::config.gravity);
-  world = new b2World(gravity);
+  world = std::make_unique<b2World>(gravity);
 
   auto render = config->getRender();
   auto resolution = render.internalResolution;
@@ -72,8 +57,7 @@ World::World(Config *config, Assets *assets)
   buildGroundBody(width, height / 2, 0, height);
   buildGroundBody(width / 2, height, width, 0);
 
-  listener = new ContactListener(world);
-  world->SetContactListener(listener);
+  world->SetContactListener(this);
 }
 
 World::~World() {
@@ -81,11 +65,19 @@ World::~World() {
     delete (Model *) body->GetUserData().pointer;
     world->DestroyBody(body);
   }
-  for (auto& sprite : destroyedSprites) {
-    delete sprite.model;
+}
+
+void World::BeginContact(b2Contact *contact) {
+  auto body1 = contact->GetFixtureA()->GetBody();
+  auto body2 = contact->GetFixtureB()->GetBody();
+
+  for (auto body : {body1, body2}) {
+    if (body->GetType() != b2_dynamicBody) {
+      continue;
+    }
+    auto model = (Model *) body->GetUserData().pointer;
+    model->recordCollision();
   }
-  delete world;
-  delete listener;
 }
 
 void World::buildGroundBody(float x, float y, float width, float height) {
@@ -106,15 +98,16 @@ bool World::tryAddModel(ModelDefinition *definition) {
   switch (definition->getType()) {
     case ModelType_Character: {
       auto ch = (Character *) definition;
-      asset = assets->getCharacterSprite(ch->getValue());
+      asset = assets->getSprite(ch->getValue());
       break;
     }
 
     case ModelType_Ground:
       throw std::runtime_error("cannot dynamically add a ground body");
   }
-  auto spriteWidth = asset->size.width * CHARACTER_SCALE;
-  auto spriteHeight = asset->size.height * CHARACTER_SCALE;
+  auto spriteSize = asset->getSize();
+  auto spriteWidth = spriteSize.width * CHARACTER_SCALE;
+  auto spriteHeight = spriteSize.height * CHARACTER_SCALE;
   auto spriteScale = std::max(spriteHeight, spriteWidth);
 
   auto windowSize = b2Vec2(spriteWidth, spriteHeight);
@@ -181,7 +174,7 @@ bool World::tryAddModel(ModelDefinition *definition) {
   fixtureDef.friction = 0.30f;
   fixtureDef.restitution = .5f;
 
-  for (auto polygon : asset->polygons) {
+  for (auto polygon : asset->getPolygons()) {
     for (auto& vertex : polygon.vertices) {
       vertex *= spriteScale;
     }
@@ -204,65 +197,54 @@ void World::update(float delta, const InputState *input) {
   auto timeStep = delta / 1000;
 
   auto force = b2Vec2(0, 0);
-  if (input->right) {
+  if (input->getRight()) {
     force.x += DIRECTION_FORCE;
   }
-  if (input->left) {
+  if (input->getLeft()) {
     force.x -= DIRECTION_FORCE;
   }
-  if (input->up) {
+  if (input->getUp()) {
     force.y += DIRECTION_FORCE;
   }
-  if (input->down) {
+  if (input->getDown()) {
     force.y -= DIRECTION_FORCE;
   }
 
-
-  for (auto i = 0; i < destroyedSprites.size(); i++) {
-    auto sprite = &destroyedSprites.at(i);
-    if (--sprite->framesRemaining <= 0) {
-      delete sprite->model;
-      destroyedSprites.erase(destroyedSprites.begin() + i--);
-    } else {
-      sprite->percentRemaining = (float) sprite->framesRemaining / DESTROYED_SPRITE_FRAMES;
-      for (auto& particle : sprite->particles) {
-        particle.transform.p.x += particle.velocity.x * timeStep;
-        particle.transform.p.y += particle.velocity.y * timeStep;
-        particle.transform.q.Set(particle.transform.q.GetAngle() + particle.angularVelocity);
-      }
+  for (auto i = 0; i < explosions.size(); i++) {
+    auto explosion = &explosions.at(i);
+    if (explosion->nextFrame(timeStep)) {
+      logger->info("destroyed '{}'", explosion->getAsset()->getName());
+      explosions.erase(explosions.begin() + i--);
     }
   }
 
-  auto activeDynamicBodies = 0;
   for (auto body = world->GetBodyList(); body; body = body->GetNext()) {
     if (body->GetType() != b2_dynamicBody) {
       continue;
     }
 
-    if (body->IsAwake()) {
-      activeDynamicBodies++;
-    }
-
     auto model = (Model *) body->GetUserData().pointer;
     if (model->getCollisions() >= MAX_COLLISIONS) {
-      auto sprite = getSprite(body);
-      auto destroyed = DestroyedSprite(&sprite, DESTROYED_SPRITE_FRAMES);
+      auto particles = std::vector<Particle>();
       auto transform = body->GetTransform();
       for (auto fixture = body->GetFixtureList(); fixture; fixture = fixture->GetNext()) {
         auto shape = (b2PolygonShape*) fixture->GetShape();
-        auto particle = Particle{};
-        particle.velocity = b2Vec2(
+
+        auto velocity = b2Vec2(
           std::rand() % (2 * MAX_PARTICLE_VELOCITY) - MAX_PARTICLE_VELOCITY / 2,
           std::rand() % (2 * MAX_PARTICLE_VELOCITY) - MAX_PARTICLE_VELOCITY / 2);
-        particle.angularVelocity = (float) (std::rand() % 25) / 1000;
-        particle.transform = transform;
+        auto angularVelocity = (float) (std::rand() % 25) / 1000;
+
+        auto vertices = std::vector<b2Vec2>(shape->m_count);
         for (auto i = 0; i < shape->m_count; i++) {
-          particle.vertices.push_back(shape->m_vertices[i]);
+          vertices.at(i) = shape->m_vertices[i];
         }
-        destroyed.particles.push_back(particle);
+
+        particles.emplace_back(vertices, transform, velocity, angularVelocity);
       }
-      destroyedSprites.push_back(destroyed);
+      explosions.emplace_back(model, particles);
       world->DestroyBody(body);
+      delete model;
       continue;
     }
 
@@ -271,24 +253,19 @@ void World::update(float delta, const InputState *input) {
     }
   }
 
-  auto keys = input->keys;
-  for (auto i = 0; i < keys.size(); i++) {
-    auto key = keys.at(i);
-    if (std::find(lastKeys.begin(), lastKeys.end(), key) != lastKeys.end()) {
-      keys.erase(keys.begin() + i--);
+  auto keys = input->getKeys();
+  for (auto key : keys) {
+    if (lastKeys.find(key) != lastKeys.end()) {
+      // key has 'just' been pressed, ignore it...
+      continue;
     }
-  }
 
-  if (activeDynamicBodies < MAX_BODIES) {
-    for (auto key : keys) {
-      auto shape = new Character(key);
-      if (!tryAddModel(shape)) {
-        delete shape;
-        std::cout << "cannot place" << std::endl;
-      }
+    auto shape = new Character(key);
+    if (!tryAddModel(shape)) {
+      delete shape;
     }
   }
-  lastKeys = input->keys;
+  lastKeys = keys;
 
   world->Step(timeStep, VELOCITY_ITERATIONS, POSITION_ITERATIONS);
 }
@@ -302,8 +279,8 @@ std::vector<Sprite> World::getSprites() const {
   return sprites;
 }
 
-std::vector<DestroyedSprite> World::getDestroyedSprites() const {
-  return destroyedSprites;
+std::vector<SpriteExplosion> &World::getExplosions() {
+  return explosions;
 }
 
 void World::debugDraw() const {

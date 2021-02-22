@@ -1,14 +1,15 @@
 #pragma once
 
-#include "../logger/Logger.h"
 #include <filesystem>
 
 struct WorldConfig {
   float gravity;
 };
 
-struct AssetConfig {
-  std::filesystem::path path;
+struct FilesystemConfig {
+  std::filesystem::path assets;
+  std::filesystem::path log;
+  std::filesystem::path cache;
 };
 
 struct Resolution {
@@ -17,16 +18,17 @@ struct Resolution {
 };
 
 struct RenderConfig {
+  bool fullScreen;
   bool debugPhysics;
   float pixelsPerMeter;
   Resolution internalResolution;
 };
 
 class Config {
-  Logger *logger;
   WorldConfig world{};
-  AssetConfig assets{};
+  FilesystemConfig filesystem{};
   RenderConfig render{};
+  std::string title;
 
   bool read(const std::filesystem::path &path);
   void write(const std::filesystem::path &path);
@@ -34,17 +36,21 @@ class Config {
   void validate() const;
 
 public:
-  explicit Config(Logger *logger);
+  explicit Config();
 
   [[nodiscard]] inline const WorldConfig &getWorld() const {
     return world;
   }
 
-  [[nodiscard]] inline const AssetConfig &getAssets() const {
-    return assets;
+  [[nodiscard]] inline const FilesystemConfig &getFilesystem() const {
+    return filesystem;
   }
 
   [[nodiscard]] inline const RenderConfig &getRender() const {
     return render;
+  }
+
+  [[nodiscard]] const std::string &getTitle() const {
+    return title;
   }
 };

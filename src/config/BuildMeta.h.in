@@ -1,0 +1,4 @@
+#pragma once
+
+#define PROJECT_NAME "@CMAKE_PROJECT_NAME@"
+#define PROJECT_TITLE "@PROJECT_DESCRIPTION@"
