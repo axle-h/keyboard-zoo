@@ -12,6 +12,10 @@ struct FilesystemConfig {
   std::filesystem::path cache;
 };
 
+struct SandboxConfig {
+  bool enabled;
+};
+
 struct Resolution {
   int width;
   int height;
@@ -25,6 +29,7 @@ struct RenderConfig {
 };
 
 class Config {
+  SandboxConfig sandbox{};
   WorldConfig world{};
   FilesystemConfig filesystem{};
   RenderConfig render{};
@@ -37,6 +42,10 @@ class Config {
 
 public:
   explicit Config();
+
+  [[nodiscard]] const SandboxConfig &getSandbox() const {
+    return sandbox;
+  }
 
   [[nodiscard]] inline const WorldConfig &getWorld() const {
     return world;

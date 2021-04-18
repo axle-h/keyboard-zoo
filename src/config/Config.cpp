@@ -54,9 +54,13 @@ bool Config::read(const std::filesystem::path &path) {
     json j;
     file >> j;
 
+    auto jSandbox = j.at("sandbox");
     auto jWorld = j.at("world");
     auto jRender = j.at("render");
 
+    sandbox = {
+      .enabled = jSandbox.at("enabled"),
+    };
     world = {
       .gravity = jWorld.at("gravity"),
     };
@@ -80,6 +84,7 @@ void Config::write(const std::filesystem::path &path) {
   std::ofstream file(path, std::ios_base::trunc);
 
   json j = {
+    {"sandbox", {{"enabled", sandbox.enabled}}},
     {"world", {{"gravity", world.gravity}}},
     { "render", {
       { "fullScreen", render.fullScreen },
@@ -97,6 +102,7 @@ void Config::write(const std::filesystem::path &path) {
 }
 
 void Config::defaults() {
+  sandbox.enabled = true;
   world.gravity = -1.f;
   render.fullScreen = true;
   render.debugPhysics = false;

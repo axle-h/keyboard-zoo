@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.13)
 project(baby-smash
-        VERSION 1.0.0
+        VERSION 1.0.1
         DESCRIPTION "Baby Smash"
         HOMEPAGE_URL https://github.com/axle-h/baby-smash)
 
@@ -19,7 +19,7 @@ include(FindPkgConfig)
 
 # Find required sdl2 libraries
 pkg_check_modules(SDL2 REQUIRED IMPORTED_TARGET
-        sdl2
+        SDL2
         SDL2_image>=2.0.0
         SDL2_gfx)
 
@@ -114,6 +114,11 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
         spdlog)
 
 if (APPLE)
+    target_link_libraries(${CMAKE_PROJECT_NAME}
+            "-framework CoreGraphics"
+            "-framework Foundation"
+            "-framework QuartzCore")
+
     install(TARGETS ${CMAKE_PROJECT_NAME} DESTINATION . COMPONENT app)
     set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES
             MACOSX_BUNDLE TRUE

@@ -2,9 +2,17 @@
 #include "display/Display.h"
 #include "timer/Timer.h"
 
+#if defined(__APPLE__)
+  #include "sandbox/DarwinSandbox.h"
+#endif
+
 int main(int argv, char** args) {
   auto config = std::make_shared<Config>();
   auto logger = std::make_shared<Logger>(config->getFilesystem().log.string());
+
+#if defined(__APPLE__)
+  auto sandbox = std::make_unique<DarwinSandbox>(config, logger);
+#endif
 
   try {
     auto timer = std::make_unique<Timer>();

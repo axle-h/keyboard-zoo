@@ -4,7 +4,7 @@ Cross platform, physics based game for toddlers.
 Built for my one-year-old so she can non-destructively join in with me working from home
 (plus I wanted to do some cross-platform physics & graphics programming in modern C++).
 
-* Full screen & toddler safe (currently only on mac, well sort of... prepare for screenshots 😂). On macos you must force close via ⌘ + ⌥ + ESC. *TODO implement toddler safety on Windows & Linux platforms*.
+* Full screen & toddler safe (currently only on mac). On macos you must force close via ⌘ + ⌥ + ESC. *TODO implement toddler safety on Windows & Linux platforms*.
 * Random dynamic backgrounds.
 * Each key press (smash) generates a letter, number or object & plays a sound. *TODO add the control keys, make sure all keys mapped correctly through SDL eg numpad*
 * Objects are realistically simulated in a 2D physics model.
@@ -20,6 +20,10 @@ Built for my one-year-old so she can non-destructively join in with me working f
 Download & unpack the release for your platform.
 
 * **macos (Darwin)** Unzip & move the 'baby-smash' application to the Applications folder.
+  When the toddler safe sandbox is enabled (default) then you must [grant accessibility permissions to 'baby-smash'](https://support.apple.com/en-gb/guide/mac-help/mh43185/mac).
+  Side note: this gives baby-smash permission to intercept ALL user input events as if it were a keylogger!
+  Writing this application opened my eyes to the severity of the accessibility permissions on macos.
+  **Only ever grant accessibility permissions for apps that you trust or have built from reviewed source yourself!**
 * **Ubuntu/Debian** `sudo apt install ./baby-smash-*.deb` & run the 'Baby Smash' application
 * **Windows** Unzip & run, the binary is portable.
 
@@ -77,7 +81,7 @@ cmake --build . --target package
 
 Config is stored in JSON.
 
-* **macos** `~/Library/Application Support/axle-h/baby-smash/config.json`
+* **macos** `"~/Library/Application Support/axle-h/baby-smash/config.json"`
 * **Linux** `~/.local/share/axle-h/baby-smash/config.json`
 * **Windows** `~/AppData/Roaming/axle-h/baby-smash/config.json`
 

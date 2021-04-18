@@ -44,6 +44,7 @@ Display::Display(std::shared_ptr<Logger> logger, const std::shared_ptr<Config> &
 
     SDL_SetWindowDisplayMode(window, &displayMode);
     SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN);
+    SDL_ShowCursor(SDL_DISABLE);
   }
 
   renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE);
