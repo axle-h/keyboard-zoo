@@ -18,10 +18,17 @@ include(FetchContent)
 include(FindPkgConfig)
 
 # Find required sdl2 libraries
-pkg_check_modules(SDL2 REQUIRED IMPORTED_TARGET
-        SDL2
-        SDL2_image>=2.0.0
-        SDL2_gfx)
+if (APPLE)
+    pkg_check_modules(SDL2 REQUIRED IMPORTED_TARGET
+            SDL2
+            SDL2_image>=2.0.0
+            SDL2_gfx)
+else()
+    pkg_check_modules(SDL2 REQUIRED IMPORTED_TARGET
+            sdl2
+            SDL2_image>=2.0.0
+            SDL2_gfx)
+endif()
 
 # Find required libav libraries
 pkg_check_modules(LIBAV REQUIRED IMPORTED_TARGET
