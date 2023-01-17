@@ -39,7 +39,7 @@ Assets::Assets(const std::shared_ptr<Config>& config, std::shared_ptr<Logger> lo
       auto colour = sprite.at("colour");
       std::string name = sprite.at("name");
 
-      auto result = std::vector<Polygon>(polygons.size());
+      auto result = std::vector<bsPolygon>(polygons.size());
       for (auto p = 0; p < polygons.size(); p++) {
         auto polygon = polygons.at(p);
         auto vertices = std::vector<b2Vec2>(polygon.size() / 2);
@@ -51,7 +51,7 @@ Assets::Assets(const std::shared_ptr<Config>& config, std::shared_ptr<Logger> lo
         for (auto i = 0; i < polygon.size(); i += 2) {
           vertices.at(i / 2).Set(polygon.at(i), polygon.at(i + 1));
         }
-        result.at(p) = Polygon{vertices};
+        result.at(p) = bsPolygon{vertices};
       }
 
       auto asset = SpriteAsset(name, result,

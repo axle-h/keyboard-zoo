@@ -58,7 +58,7 @@ pacman -S cmake git mingw-w64-x86_64-toolchain mingw-w64-x86_64-ffmpeg mingw-w64
 ### Building
 
 ```bash
-git clone https://github.com/axle-h/baby-smash
+git clone --recurse-submodules https://github.com/axle-h/baby-smash
 cd baby-smash
 mkdir build && cd build
 cmake -D CMAKE_BUILD_TYPE=Release ..

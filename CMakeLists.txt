@@ -1,4 +1,13 @@
-cmake_minimum_required(VERSION 3.13)
+cmake_minimum_required(VERSION 3.14)
+
+if (WIN32)
+    set(VCPKG_HOST_TRIPLET "x64-mingw-dynamic" CACHE STRING "")
+    set(VCPKG_TARGET_TRIPLET "x64-mingw-dynamic" CACHE STRING "")
+endif()
+
+set(CMAKE_TOOLCHAIN_FILE "${CMAKE_CURRENT_SOURCE_DIR}/vcpkg/scripts/buildsystems/vcpkg.cmake"
+        CACHE STRING "Vcpkg toolchain file")
+
 project(baby-smash
         VERSION 1.0.1
         DESCRIPTION "Baby Smash"
@@ -11,34 +20,19 @@ set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}")
 
 configure_file (
     "${PROJECT_SOURCE_DIR}/src/config/BuildMeta.h.in"
-    "${PROJECT_SOURCE_DIR}/src/config/BuildMeta.h"
-)
+    "${PROJECT_SOURCE_DIR}/src/config/BuildMeta.h")
+
+# Find required vcpkg libraries
+find_package(SDL2 CONFIG REQUIRED)
+find_package(sdl2-gfx CONFIG REQUIRED)
+find_package(SDL2_image CONFIG REQUIRED)
+find_package(FFMPEG REQUIRED)
 
 include(FetchContent)
-include(FindPkgConfig)
-
-# Find required sdl2 libraries
-if (APPLE)
-    pkg_check_modules(SDL2 REQUIRED IMPORTED_TARGET
-            SDL2
-            SDL2_image>=2.0.0
-            SDL2_gfx)
-else()
-    pkg_check_modules(SDL2 REQUIRED IMPORTED_TARGET
-            sdl2
-            SDL2_image>=2.0.0
-            SDL2_gfx)
-endif()
-
-# Find required libav libraries
-pkg_check_modules(LIBAV REQUIRED IMPORTED_TARGET
-        libavformat
-        libavcodec
-        libavutil
-        libswscale
-        libswresample)
 
 # Fetch Box2D library from github
+set(BOX2D_BUILD_UNIT_TESTS OFF CACHE INTERNAL "Turn off box2d tests")
+set(BOX2D_BUILD_TESTBED OFF CACHE INTERNAL "Turn off box2d testbed")
 FetchContent_Declare(box2d
         GIT_REPOSITORY https://github.com/erincatto/box2d
         GIT_TAG v2.4.1)
@@ -85,7 +79,7 @@ function(resource VAR SOURCE_PATH DESTINATION PATTERN)
             install(FILES ${RESOURCE} DESTINATION ${_DESTINATION} COMPONENT app)
         else()
             file(COPY ${RESOURCE} DESTINATION ${_DESTINATION})
-            install(FILES ${RESOURCE} DESTINATION axle-h/${CMAKE_PROJECT_NAME}/${_DESTINATION} COMPONENT app)
+            install(FILES ${RESOURCE} DESTINATION axle-h/baby-smash/${_DESTINATION} COMPONENT app)
         endif()
 
     endforeach (RESOURCE)
@@ -95,7 +89,7 @@ endfunction()
 set(RESOURCES_PATH "${PROJECT_SOURCE_DIR}/assets")
 
 if (APPLE)
-    resource(MACOS_ICON_PATH ${RESOURCES_PATH} "" ${CMAKE_PROJECT_NAME}.icns)
+    resource(MACOS_ICON_PATH ${RESOURCES_PATH} "" baby-smash.icns)
 endif()
 
 resource(AUDIO_CREATE_FILES ${RESOURCES_PATH}/audio/create audio/create *.*)
@@ -109,25 +103,30 @@ set(RESOURCE_FILES
     ${AUDIO_MUSIC_FILES}
     ${VIDEO_FILES}
     ${SPRITE_FILES}
-    ${MACOS_ICON_PATH})
+    ${MACOS_ICON_PATH}) # TODO remove from non-macos builds
 
-add_executable(${CMAKE_PROJECT_NAME} ${SOURCE_FILES} ${RESOURCE_FILES})
-
-target_link_libraries(${CMAKE_PROJECT_NAME}
-        PkgConfig::LIBAV
-        PkgConfig::SDL2
+add_executable(baby-smash ${SOURCE_FILES} ${RESOURCE_FILES})
+target_include_directories(baby-smash PRIVATE ${FFMPEG_INCLUDE_DIRS})
+target_link_directories(baby-smash PRIVATE ${FFMPEG_LIBRARY_DIRS})
+target_link_libraries(baby-smash
+        PRIVATE
+        $<TARGET_NAME_IF_EXISTS:SDL2::SDL2main>
+        $<IF:$<TARGET_EXISTS:SDL2::SDL2>,SDL2::SDL2,SDL2::SDL2-static>
+        SDL2::SDL2_gfx
+        $<IF:$<TARGET_EXISTS:SDL2_image::SDL2_image>,SDL2_image::SDL2_image,SDL2_image::SDL2_image-static>
         box2d
         nlohmann_json::nlohmann_json
-        spdlog)
+        spdlog::spdlog
+        ${FFMPEG_LIBRARIES})
 
 if (APPLE)
-    target_link_libraries(${CMAKE_PROJECT_NAME}
+    target_link_libraries(baby-smash
             "-framework CoreGraphics"
             "-framework Foundation"
             "-framework QuartzCore")
 
-    install(TARGETS ${CMAKE_PROJECT_NAME} DESTINATION . COMPONENT app)
-    set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES
+    install(TARGETS baby-smash DESTINATION . COMPONENT app)
+    set_target_properties(baby-smash PROPERTIES
             MACOSX_BUNDLE TRUE
             MACOSX_BUNDLE_BUNDLE_NAME "${PROJECT_DESCRIPTION}"
             MACOSX_BUNDLE_COPYRIGHT "Alex Haslehurst"
@@ -135,7 +134,7 @@ if (APPLE)
             MACOSX_BUNDLE_INFO_STRING "${PROJECT_DESCRIPTION} ${PROJECT_VERSION}"
             MACOSX_BUNDLE_LONG_VERSION_STRING ${PROJECT_VERSION}
             MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION}
-            MACOSX_BUNDLE_ICON_FILE ${CMAKE_PROJECT_NAME})
+            MACOSX_BUNDLE_ICON_FILE baby-smash)
 
     install(CODE [[
             include(BundleUtilities)
@@ -146,7 +145,8 @@ if (APPLE)
     set(CPACK_ARCHIVE_COMPONENT_INSTALL ON)
     set(CPACK_COMPONENTS_ALL app)
 elseif (WIN32)
-    install(TARGETS ${CMAKE_PROJECT_NAME} DESTINATION . COMPONENT app)
+
+    install(TARGETS baby-smash DESTINATION . COMPONENT app)
     install(CODE [[
             include(BundleUtilities)
             fixup_bundle(${CMAKE_INSTALL_PREFIX}/baby-smash.exe "" "")
@@ -156,9 +156,9 @@ elseif (WIN32)
     set(CPACK_ARCHIVE_COMPONENT_INSTALL ON)
     set(CPACK_COMPONENTS_ALL app)
 elseif (UNIX)
-    install(TARGETS ${CMAKE_PROJECT_NAME} DESTINATION share/axle-h/${CMAKE_PROJECT_NAME} COMPONENT app)
-    install(FILES ${RESOURCES_PATH}/${CMAKE_PROJECT_NAME}.desktop DESTINATION share/applications COMPONENT app)
-    install(FILES ${RESOURCES_PATH}/${CMAKE_PROJECT_NAME}.png DESTINATION share/pixmaps COMPONENT app)
+    install(TARGETS baby-smash DESTINATION share/axle-h/baby-smash COMPONENT app)
+    install(FILES ${RESOURCES_PATH}/baby-smash.desktop DESTINATION share/applications COMPONENT app)
+    install(FILES ${RESOURCES_PATH}/baby-smash.png DESTINATION share/pixmaps COMPONENT app)
     set(CPACK_GENERATOR "DEB")
     set(CPACK_DEB_COMPONENT_INSTALL ON)
     set(CPACK_COMPONENTS_ALL app)
@@ -171,3 +171,4 @@ elseif (UNIX)
 endif()
 
 include(CPack)
+

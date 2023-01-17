@@ -1,0 +1,23 @@
+{
+  "name": "baby-smash",
+  "version-string": "1.0.1",
+  "dependencies": [
+    "sdl2",
+    "sdl2-gfx",
+    "sdl2-image",
+    "box2d",
+    "nlohmann-json",
+    "spdlog",
+    {
+      "name": "ffmpeg",
+      "default-features": false,
+      "features": [
+        "avformat",
+        "avcodec",
+        "swscale",
+        "swresample"
+      ]
+    }
+  ],
+  "builtin-baseline": "877e3dc2323a4d4c3c75e7168c22a0c4e921d4db"
+}

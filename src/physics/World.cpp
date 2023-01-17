@@ -6,6 +6,8 @@
 #include <box2d/box2d.h>
 #include <utility>
 
+#define M_PI           3.14159265358979323846
+
 const int VELOCITY_ITERATIONS = 6;
 const int POSITION_ITERATIONS = 2;
 const int MAX_COLLISIONS = 5;

@@ -1,6 +1,7 @@
 #include "AudioTranscoder.h"
 
 #include <utility>
+#include <filesystem>
 
 #include "wrappers/PacketRef.h"
 #include "wrappers/FrameRef.h"
@@ -10,6 +11,8 @@ extern "C" {
   #include "libavutil/avstring.h"
   #include "libavutil/opt.h"
 }
+
+namespace fs = std::filesystem;
 
 static const auto OUTPUT_BIT_RATE = 96000;
 static const auto OUTPUT_CHANNELS = 2;
@@ -65,7 +68,6 @@ bool AudioTranscoder::initOutput(std::string filename) {
   }
 
   auto codecId = formatContext->oformat->audio_codec;
-  av_strlcpy(formatContext->filename, filename.c_str(), sizeof(formatContext->filename));
 
   // Find the encoder to be used by its name.
   auto codec = avcodec_find_encoder(codecId);

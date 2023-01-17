@@ -12,20 +12,20 @@ struct Colour {
   int b;
 };
 
-struct Polygon {
+struct bsPolygon {
   std::vector<b2Vec2> vertices;
 };
 
 class SpriteAsset {
   std::string name;
-  std::vector<Polygon> polygons;
+  std::vector<bsPolygon> polygons;
   Point position;
   Dimensions size;
   Colour colour;
 
 public:
   SpriteAsset(std::string name,
-              std::vector<Polygon> polygons,
+              std::vector<bsPolygon> polygons,
               const Point &position,
               const Dimensions &size,
               const Colour &colour)
@@ -35,7 +35,7 @@ public:
     return name;
   }
 
-  [[nodiscard]] const std::vector<Polygon> &getPolygons() const {
+  [[nodiscard]] const std::vector<bsPolygon> &getPolygons() const {
     return polygons;
   }
 
