@@ -5,9 +5,6 @@
     "sdl2",
     "sdl2-gfx",
     "sdl2-image",
-    "box2d",
-    "nlohmann-json",
-    "spdlog",
     {
       "name": "ffmpeg",
       "default-features": false,

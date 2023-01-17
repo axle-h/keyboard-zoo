@@ -33,18 +33,22 @@ On first load the app will appear to hang - it's decompressing the audio assets.
 
 ### Dependencies
 
+Runtime dependencies are resolved via vcpkg and github.
+There are some build dependencies.
+
 **macos**
 
-Use [homebrew](https://brew.sh/).
+Use xcode and [homebrew](https://brew.sh/).
 
-```
-brew install cmake git ffmpeg sdl2 sdl2_gfx sdl2_image
+```bash
+# TODO verify this still works
+brew install cmake git
 ```
 
-**Ubuntu 20.04**
+**Ubuntu 22.04**
 
-```
-sudo apt install build-essential cmake git libsdl2-dev libsdl2-gfx-dev libsdl2-image-dev libavcodec-dev libavformat-dev libswscale-dev libswresample-dev
+```bash
+sudo apt install build-essential cmake zip unzip curl git nasm pkg-config
 ```
 
 **Windows**
@@ -52,7 +56,7 @@ sudo apt install build-essential cmake git libsdl2-dev libsdl2-gfx-dev libsdl2-i
 Use [MSYS2](https://www.msys2.org/#installation).
 
 ```bash
-pacman -S cmake git mingw-w64-x86_64-toolchain mingw-w64-x86_64-ffmpeg mingw-w64-x86_64-SDL2 mingw-w64-x86_64-SDL2_gfx mingw-w64-x86_64-SDL2_image
+pacman -S cmake git mingw-w64-x86_64-toolchain
 ```
 
 ### Building
@@ -60,9 +64,8 @@ pacman -S cmake git mingw-w64-x86_64-toolchain mingw-w64-x86_64-ffmpeg mingw-w64
 ```bash
 git clone --recurse-submodules https://github.com/axle-h/baby-smash
 cd baby-smash
-mkdir build && cd build
-cmake -D CMAKE_BUILD_TYPE=Release ..
-cmake --build . --target baby-smash -- -j8
+cmake -DCMAKE_BUILD_TYPE=Release -S . -B build
+cmake --build ./build --target baby-smash -- -j8
 ```
 
 To run:
