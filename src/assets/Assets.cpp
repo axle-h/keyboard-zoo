@@ -4,7 +4,6 @@
 #include <fstream>
 #include <iostream>
 #include <nlohmann/json.hpp>
-#include <sstream>
 #include <utility>
 
 namespace fs = std::filesystem;
@@ -94,7 +93,7 @@ std::string getFolder(AudioAssetType type) {
 }
 
 std::vector<AudioAsset> Assets::getAudioAssets() const {
-  auto map = std::unordered_map<std::string, AudioAsset>();
+  auto result = std::vector<AudioAsset>();
 
   for (auto type : {AudioAssetType::Create, AudioAssetType::Destroy, AudioAssetType::Music}) {
     auto audioPath = config.assets / "audio" / getFolder(type);
@@ -106,36 +105,10 @@ std::vector<AudioAsset> Assets::getAudioAssets() const {
         continue;
       }
 
-      auto isWav = extension == ".wav";
       auto name = filePath.filename().replace_extension().string();
-      std::stringstream ss;
-      ss << getFolder(type) << "-" << name;
-      auto key = ss.str();
-
-      AudioAsset asset(name, type, isWav ? "" : filePath.string(), isWav ? filePath.string() : "");
-      auto it = map.find(key);
-      if (it == map.end()) {
-        map.emplace(std::make_pair(key, asset));
-      } else {
-        it->second.merge(&asset);
-      }
+      AudioAsset asset(name, type, filePath.string());
+      result.push_back(asset);
     }
-  }
-
-  auto result = std::vector<AudioAsset>();
-  for (const auto &pair : map) {
-    auto asset = pair.second;
-    if (asset.getDecompressedPath().empty()) {
-      auto path = config.cache / getFolder(asset.getType());
-      if (!fs::exists(path) && !fs::create_directories(path)) {
-        logger->error("cannot create config directory {}", path.string());
-        throw std::exception();
-      }
-
-      auto filePath = path / fs::path(asset.getCompressedPath()).filename().replace_extension(".wav");
-      asset.setDecompressedPath(filePath.string());
-    }
-    result.push_back(asset);
   }
 
   return result;

@@ -1,8 +1,11 @@
 cmake_minimum_required(VERSION 3.14)
 
 if (WIN32)
+    # haven't tried building on msvc at all
     set(VCPKG_HOST_TRIPLET "x64-mingw-dynamic" CACHE STRING "")
     set(VCPKG_TARGET_TRIPLET "x64-mingw-dynamic" CACHE STRING "")
+    # TODO this is required to build with msys64 but is pure dirt, how do I make this generic for e.g. plain old mingw?
+    set(PKG_CONFIG_EXECUTABLE "C:/msys64/mingw64/bin/pkg-config.exe")
 endif()
 
 set(CMAKE_TOOLCHAIN_FILE "${CMAKE_CURRENT_SOURCE_DIR}/vcpkg/scripts/buildsystems/vcpkg.cmake"
@@ -13,6 +16,9 @@ project(baby-smash
         DESCRIPTION "Baby Smash"
         HOMEPAGE_URL https://github.com/axle-h/baby-smash)
 
+include(FetchContent)
+include(FindPkgConfig)
+
 set(CMAKE_CXX_STANDARD 17)
 
 # Only support packaging, not installing from source.
@@ -22,13 +28,14 @@ configure_file (
     "${PROJECT_SOURCE_DIR}/src/config/BuildMeta.h.in"
     "${PROJECT_SOURCE_DIR}/src/config/BuildMeta.h")
 
-# Find required vcpkg libraries
-find_package(SDL2 CONFIG REQUIRED)
-find_package(sdl2-gfx CONFIG REQUIRED)
-find_package(SDL2_image CONFIG REQUIRED)
+# Find ffmpeg on vcpkg, we're doing this as 5.0 has some breaking changes.
 find_package(FFMPEG REQUIRED)
 
-include(FetchContent)
+# Find required sdl2 libraries
+pkg_search_module(SDL2 REQUIRED IMPORTED_TARGET sdl2 SDL2) # the casing changes by platform...
+pkg_check_modules(SDL2_image REQUIRED IMPORTED_TARGET SDL2_image>=2.0.0)
+pkg_check_modules(SDL2_gfx REQUIRED IMPORTED_TARGET SDL2_gfx)
+pkg_check_modules(SDL2_mixer REQUIRED IMPORTED_TARGET SDL2_mixer)
 
 # Fetch Box2D library from github
 set(BOX2D_BUILD_UNIT_TESTS OFF CACHE INTERNAL "Turn off box2d tests")
@@ -52,8 +59,7 @@ FetchContent_MakeAvailable(spdlog)
 
 file(GLOB_RECURSE SOURCE_FILES
         "${PROJECT_SOURCE_DIR}/src/*.h"
-        "${PROJECT_SOURCE_DIR}/src/*.cpp"
-        "${PROJECT_SOURCE_DIR}/src/*.c")
+        "${PROJECT_SOURCE_DIR}/src/*.cpp")
 
 # TODO move into resources module
 function(resource VAR SOURCE_PATH DESTINATION PATTERN)
@@ -110,14 +116,14 @@ target_include_directories(baby-smash PRIVATE ${FFMPEG_INCLUDE_DIRS})
 target_link_directories(baby-smash PRIVATE ${FFMPEG_LIBRARY_DIRS})
 target_link_libraries(baby-smash
         PRIVATE
-        $<TARGET_NAME_IF_EXISTS:SDL2::SDL2main>
-        $<IF:$<TARGET_EXISTS:SDL2::SDL2>,SDL2::SDL2,SDL2::SDL2-static>
-        SDL2::SDL2_gfx
-        $<IF:$<TARGET_EXISTS:SDL2_image::SDL2_image>,SDL2_image::SDL2_image,SDL2_image::SDL2_image-static>
+        ${FFMPEG_LIBRARIES}
+        PkgConfig::SDL2
+        PkgConfig::SDL2_image
+        PkgConfig::SDL2_gfx
+        PkgConfig::SDL2_mixer
         box2d
         nlohmann_json::nlohmann_json
-        spdlog::spdlog
-        ${FFMPEG_LIBRARIES})
+        spdlog::spdlog)
 
 if (APPLE)
     target_link_libraries(baby-smash
@@ -145,7 +151,6 @@ if (APPLE)
     set(CPACK_ARCHIVE_COMPONENT_INSTALL ON)
     set(CPACK_COMPONENTS_ALL app)
 elseif (WIN32)
-
     install(TARGETS baby-smash DESTINATION . COMPONENT app)
     install(CODE [[
             include(BundleUtilities)

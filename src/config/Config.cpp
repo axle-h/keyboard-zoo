@@ -37,7 +37,6 @@ Config::Config() {
 
   filesystem.assets = SDL_GetBasePath();
   filesystem.log = prefsPath / "application.log";
-  filesystem.cache = prefsPath / "cache";
 
   auto configPath = prefsPath / CONFIG_NAME;
   if (fs::exists(configPath) && read(configPath)) {

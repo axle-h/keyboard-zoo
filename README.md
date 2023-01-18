@@ -27,8 +27,6 @@ Download & unpack the release for your platform.
 * **Ubuntu/Debian** `sudo apt install ./baby-smash-*.deb` & run the 'Baby Smash' application
 * **Windows** Unzip & run, the binary is portable.
 
-On first load the app will appear to hang - it's decompressing the audio assets. *TODO add a loading splash screen*
-
 ## Building
 
 ### Dependencies
@@ -42,13 +40,13 @@ Use xcode and [homebrew](https://brew.sh/).
 
 ```bash
 # TODO verify this still works
-brew install cmake git
+brew install cmake git sdl2 sdl2_gfx sdl2_image sdl2_mixer
 ```
 
 **Ubuntu 22.04**
 
 ```bash
-sudo apt install build-essential cmake zip unzip curl git nasm pkg-config
+sudo apt install git build-essential cmake zip unzip curl nasm pkg-config libsdl2-dev libsdl2-gfx-dev libsdl2-image-dev libsdl2-mixer-dev
 ```
 
 **Windows**
@@ -56,7 +54,7 @@ sudo apt install build-essential cmake zip unzip curl git nasm pkg-config
 Use [MSYS2](https://www.msys2.org/#installation).
 
 ```bash
-pacman -S cmake git mingw-w64-x86_64-toolchain
+pacman -S git mingw-w64-x86_64-cmake mingw-w64-x86_64-toolchain mingw-w64-x86_64-SDL2 mingw-w64-x86_64-SDL2_gfx mingw-w64-x86_64-SDL2_image mingw-w64-x86_64-SDL2_mixer
 ```
 
 ### Building
@@ -117,10 +115,11 @@ You can debug newly added sprites by enabling the `render.debugPhysics` option i
 
 ### Audio & Video
 
-These are decompressed at runtime via `ffmpeg` libraries so pretty much any format should work as long as you have the codec.
+Video is decompressed at runtime via `ffmpeg` so pretty much any format should work as long as you have the codec.
+Audio is handled by `SDL_mixer`, only the ogg codec is initialized.
 Baby smash will look for.
 
-* **Audio** mp3, mp4, m4a
+* **Audio** ogg
 * **Video** mp4, mov
 
 To update audio & video, just drop compatible files into the relevant [assets](./assets) folder.

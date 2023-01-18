@@ -141,14 +141,3 @@ VideoFormat FrameService::getVideoFormat() const {
     .framerate = (float) framerate.num / (float) framerate.den,
   };
 }
-
-AudioFormat FrameService::getAudioFormat() const {
-  if (type != AVMEDIA_TYPE_AUDIO) {
-    throw std::runtime_error("Cannot get audio format for non-audio source");
-  }
-  return AudioFormat {
-    .sampleFormat = dec_ctx->sample_fmt,
-    .channels = dec_ctx->channels,
-    .sampleRate = dec_ctx->sample_rate,
-  };
-}

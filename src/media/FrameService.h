@@ -27,8 +27,4 @@ public:
 
   [[nodiscard]] AVFrame *getFrame() const;
   [[nodiscard]] VideoFormat getVideoFormat() const;
-  [[nodiscard]] AudioFormat getAudioFormat() const;
-  [[nodiscard]] inline bool isEof() const {
-    return eof;
-  }
 };
