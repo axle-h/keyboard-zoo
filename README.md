@@ -75,7 +75,7 @@ To run:
 To package:
 
 ```bash
-cmake --build . --target package
+cmake --build ./build --target package
 ```
 
 ## Config

@@ -12,7 +12,7 @@ set(CMAKE_TOOLCHAIN_FILE "${CMAKE_CURRENT_SOURCE_DIR}/vcpkg/scripts/buildsystems
         CACHE STRING "Vcpkg toolchain file")
 
 project(baby-smash
-        VERSION 1.0.1
+        VERSION 1.1.0
         DESCRIPTION "Baby Smash"
         HOMEPAGE_URL https://github.com/axle-h/baby-smash)
 
