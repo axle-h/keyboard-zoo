@@ -1,0 +1,17 @@
+{
+  "name": "baby-smash",
+  "version-string": "1.0.1",
+  "dependencies": [
+    {
+      "name": "ffmpeg",
+      "default-features": false,
+      "version>=": "5.0.2",
+      "features": [
+        "avformat",
+        "avcodec",
+        "swscale"
+      ]
+    }
+  ],
+  "builtin-baseline": "877e3dc2323a4d4c3c75e7168c22a0c4e921d4db"
+}

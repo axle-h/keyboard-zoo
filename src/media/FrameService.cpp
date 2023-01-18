@@ -3,6 +3,10 @@
 #include <iostream>
 #include <sstream>
 
+extern "C" {
+  #include <libavcodec/avcodec.h>
+}
+
 FrameService::FrameService(const std::string path, enum AVMediaType type) : type(type) {
 
   // Open input file, and allocate format context
@@ -15,7 +19,7 @@ FrameService::FrameService(const std::string path, enum AVMediaType type) : type
     throw std::runtime_error("Could not find stream information");
   }
 
-  AVCodec *codec = nullptr;
+  const AVCodec *codec = nullptr;
   streamId = av_find_best_stream(fmt_ctx, type, -1, -1, &codec, 0);
   if (streamId < 0) {
     throw std::runtime_error("Could not find a suitable stream");
@@ -135,16 +139,5 @@ VideoFormat FrameService::getVideoFormat() const {
     .height = dec_ctx->height,
     .pixelFormat = dec_ctx->pix_fmt,
     .framerate = (float) framerate.num / (float) framerate.den,
-  };
-}
-
-AudioFormat FrameService::getAudioFormat() const {
-  if (type != AVMEDIA_TYPE_AUDIO) {
-    throw std::runtime_error("Cannot get audio format for non-audio source");
-  }
-  return AudioFormat {
-    .sampleFormat = dec_ctx->sample_fmt,
-    .channels = dec_ctx->channels,
-    .sampleRate = dec_ctx->sample_rate,
   };
 }

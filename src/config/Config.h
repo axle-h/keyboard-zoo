@@ -9,7 +9,6 @@ struct WorldConfig {
 struct FilesystemConfig {
   std::filesystem::path assets;
   std::filesystem::path log;
-  std::filesystem::path cache;
 };
 
 struct SandboxConfig {

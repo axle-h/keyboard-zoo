@@ -8,7 +8,7 @@
 
 class Assets {
   const std::vector<std::string> VIDEO_EXTENSIONS = std::vector<std::string>{".mov", ".mp4"};
-  const std::vector<std::string> AUDIO_EXTENSIONS = std::vector<std::string>{".mp3", ".mp4", "m4a"};
+  const std::vector<std::string> AUDIO_EXTENSIONS = std::vector<std::string>{".ogg"};
   std::shared_ptr<Logger> logger;
   std::vector<std::string> videos;
   std::map<std::string, std::vector<SpriteAsset>> sprites;

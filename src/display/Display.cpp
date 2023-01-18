@@ -10,10 +10,6 @@ Display::Display(std::shared_ptr<Logger> logger, const std::shared_ptr<Config> &
     : assets(assets), logger(std::move(logger)), config(config->getRender()), world(world), audio(audio) {
   input = std::make_shared<InputState>();
 
-  if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_AUDIO) < 0) {
-    throw std::runtime_error("Cannot initialise SDL");
-  }
-
   auto resolution = Display::config.internalResolution;
 
   window = SDL_CreateWindow(config->getTitle().c_str(),

@@ -27,24 +27,26 @@ Download & unpack the release for your platform.
 * **Ubuntu/Debian** `sudo apt install ./baby-smash-*.deb` & run the 'Baby Smash' application
 * **Windows** Unzip & run, the binary is portable.
 
-On first load the app will appear to hang - it's decompressing the audio assets. *TODO add a loading splash screen*
-
 ## Building
 
 ### Dependencies
 
+Runtime dependencies are resolved via vcpkg and github.
+There are some build dependencies.
+
 **macos**
 
-Use [homebrew](https://brew.sh/).
+Use xcode and [homebrew](https://brew.sh/).
 
-```
-brew install cmake git ffmpeg sdl2 sdl2_gfx sdl2_image
+```bash
+# TODO verify this still works
+brew install cmake git sdl2 sdl2_gfx sdl2_image sdl2_mixer
 ```
 
-**Ubuntu 20.04**
+**Ubuntu 22.04**
 
-```
-sudo apt install build-essential cmake git libsdl2-dev libsdl2-gfx-dev libsdl2-image-dev libavcodec-dev libavformat-dev libswscale-dev libswresample-dev
+```bash
+sudo apt install git build-essential cmake zip unzip curl nasm pkg-config libsdl2-dev libsdl2-gfx-dev libsdl2-image-dev libsdl2-mixer-dev
 ```
 
 **Windows**
@@ -52,17 +54,16 @@ sudo apt install build-essential cmake git libsdl2-dev libsdl2-gfx-dev libsdl2-i
 Use [MSYS2](https://www.msys2.org/#installation).
 
 ```bash
-pacman -S cmake git mingw-w64-x86_64-toolchain mingw-w64-x86_64-ffmpeg mingw-w64-x86_64-SDL2 mingw-w64-x86_64-SDL2_gfx mingw-w64-x86_64-SDL2_image
+pacman -S git mingw-w64-x86_64-cmake mingw-w64-x86_64-toolchain mingw-w64-x86_64-SDL2 mingw-w64-x86_64-SDL2_gfx mingw-w64-x86_64-SDL2_image mingw-w64-x86_64-SDL2_mixer
 ```
 
 ### Building
 
 ```bash
-git clone https://github.com/axle-h/baby-smash
+git clone --recurse-submodules https://github.com/axle-h/baby-smash
 cd baby-smash
-mkdir build && cd build
-cmake -D CMAKE_BUILD_TYPE=Release ..
-cmake --build . --target baby-smash -- -j8
+cmake -DCMAKE_BUILD_TYPE=Release -S . -B build
+cmake --build ./build --target baby-smash -- -j8
 ```
 
 To run:
@@ -74,7 +75,7 @@ To run:
 To package:
 
 ```bash
-cmake --build . --target package
+cmake --build ./build --target package
 ```
 
 ## Config
@@ -114,10 +115,11 @@ You can debug newly added sprites by enabling the `render.debugPhysics` option i
 
 ### Audio & Video
 
-These are decompressed at runtime via `ffmpeg` libraries so pretty much any format should work as long as you have the codec.
+Video is decompressed at runtime via `ffmpeg` so pretty much any format should work as long as you have the codec.
+Audio is handled by `SDL_mixer`, only the ogg codec is initialized.
 Baby smash will look for.
 
-* **Audio** mp3, mp4, m4a
+* **Audio** ogg
 * **Video** mp4, mov
 
 To update audio & video, just drop compatible files into the relevant [assets](./assets) folder.

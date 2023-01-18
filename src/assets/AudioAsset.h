@@ -12,12 +12,11 @@ enum class AudioAssetType {
 class AudioAsset {
   std::string name;
   AudioAssetType type;
-  std::string compressedPath;
-  std::string decompressedPath;
+  std::string path;
 
 public:
-  AudioAsset(std::string name, AudioAssetType type, std::string compressedPath, std::string decompressedPath)
-    : name(std::move(name)), type(type), compressedPath(std::move(compressedPath)), decompressedPath(std::move(decompressedPath)) {}
+  AudioAsset(std::string name, AudioAssetType type, std::string path)
+    : name(std::move(name)), type(type), path(std::move(path)) {}
 
   [[nodiscard]] inline const std::string &getName() const {
     return name;
@@ -27,24 +26,7 @@ public:
     return type;
   }
 
-  [[nodiscard]] inline const std::string &getCompressedPath() const {
-    return compressedPath;
-  }
-
-  [[nodiscard]] inline const std::string &getDecompressedPath() const {
-    return decompressedPath;
-  }
-
-  inline void setDecompressedPath(const std::string &decompressedPath) {
-    AudioAsset::decompressedPath = decompressedPath;
-  }
-
-  inline void merge(AudioAsset *other) {
-    if (compressedPath.empty()) {
-      compressedPath = other->compressedPath;
-    }
-    if (decompressedPath.empty()) {
-      decompressedPath = other->decompressedPath;
-    }
+  [[nodiscard]] inline const std::string &getPath() const {
+    return path;
   }
 };
