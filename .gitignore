@@ -1,0 +1,6 @@
+/target
+
+# generated files
+src/assets/sound/create/mod.rs
+src/assets/sprites.json
+src/assets/sprites.png
