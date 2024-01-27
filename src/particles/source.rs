@@ -21,8 +21,10 @@ pub enum ParticlePositionSource {
     /// Emitted randomly within a rectangle
     Rect(RectF),
 
+    /// Particles are emitted from each point in the lattice
     Lattice(Vec<Vec2D>),
 
+    /// Particles are emitted from each point in the lattice once only
     EphemeralLattice(Vec<Vec2D>),
 }
 

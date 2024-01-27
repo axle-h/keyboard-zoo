@@ -3,7 +3,7 @@ use crate::particles::source::ParticlePositionSource;
 use sdl2::rect::{Point, Rect};
 use std::cmp::max;
 use crate::assets::geometry::SpriteTriangle;
-use crate::game::polygon::Triangle;
+use crate::game::polygon::{PolygonArea, Triangle};
 
 const LATTICE_SCALE: usize = 5;
 const PERIMETER_SCALE: usize = 2;
@@ -66,10 +66,11 @@ impl Scale {
         ParticlePositionSource::Lattice(points)
     }
 
-    pub fn triangle_lattice_source(&self, triangles: &[Triangle]) -> ParticlePositionSource {
-        let points = triangles.iter().flat_map(|t| self.triangle_lattice_points(*t)).collect();
+    pub fn polygon_lattice_source<A : PolygonArea + Copy>(&self, polygons: &[A]) -> ParticlePositionSource {
+        let points = polygons.iter().flat_map(|&t| self.area_lattice_points(t)).collect();
         ParticlePositionSource::Lattice(points)
     }
+
 
     pub fn perimeter_lattice_sources(&self, rect: Rect) -> [ParticlePositionSource; 4] {
         let rows = max(rect.height() as usize / PERIMETER_SCALE, 3);
@@ -122,7 +123,7 @@ impl Scale {
             .collect()
     }
 
-    fn triangle_lattice_points(&self, triangle: Triangle) -> Vec<Vec2D> {
+    fn area_lattice_points<A : PolygonArea>(&self, triangle: A) -> Vec<Vec2D> {
         let rect = triangle.aabb();
 
         let rows = max(rect.height() as usize / LATTICE_SCALE, 3);

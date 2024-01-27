@@ -8,10 +8,27 @@ use crate::particles::source::{AggregateParticleSource, ParticleModulation, Part
 use sdl2::pixels::Color;
 use sdl2::rect::{Point, Rect};
 use std::time::Duration;
-use crate::game::physics::Body;
-use crate::game::polygon::Triangle;
+use crate::game::physics::{AssetBody, Body};
+use crate::game::polygon::{Circle, Triangle};
 
-pub fn prescribed_fireworks(window: Rect, scale: &Scale) -> Box<dyn ParticleSource> {
+pub fn explosion<P : Into<Point>>(center: P, scale: &Scale) -> Box<dyn ParticleSource> {
+    let source = scale.polygon_lattice_source(&[Circle::new(100, center)]);
+    RandomParticleSource::new(source, ParticleModulation::Cascade)
+        .with_properties(ProbabilityTable::identity(ParticleProperties::new(
+            ParticleSprite::all_sprite_based().as_slice(),
+            (
+                ParticleColor::rgb(0.7, 0.4, 0.4),
+                ParticleColor::rgb(0.3, 0.3, 0.3),
+            ),
+            1.5,
+            0.0,
+        )))
+        .with_velocity((Vec2D::new(0.0, 0.0), Vec2D::new(0.25, 0.25)))
+        .with_fade_out((1.5, 0.5))
+        .into_box()
+}
+
+pub fn fireworks(window: Rect, scale: &Scale) -> Box<dyn ParticleSource> {
     let modulation = ParticleModulation::Constant {
         count: 50,
         step: Duration::from_millis(50),
@@ -39,7 +56,7 @@ pub fn prescribed_fireworks(window: Rect, scale: &Scale) -> Box<dyn ParticleSour
         .into_box()
 }
 
-pub fn prescribed_orbit(window: Rect, scale: &Scale) -> Box<dyn ParticleSource> {
+pub fn orbit(window: Rect, scale: &Scale) -> Box<dyn ParticleSource> {
     const V: f64 = 0.05;
     let [top_left, top_right, bottom_right, bottom_left] = rect_quadrants(window);
     let sources = vec![
@@ -61,8 +78,8 @@ pub fn sprite_triangle_source(triangle: Triangle, scale: &Scale) -> Box<dyn Part
         .into_box()
 }
 
-pub fn sprite_lattice_source(body: Body, scale: &Scale) -> Box<dyn ParticleSource> {
-    let position = scale.triangle_lattice_source(body.polygons());
+pub fn sprite_lattice_source(body: AssetBody, scale: &Scale) -> Box<dyn ParticleSource> {
+    let position = scale.polygon_lattice_source(body.polygons());
     RandomParticleSource::new(position, ParticleModulation::Cascade)
         .with_static_properties(
             ParticleSprite::Circle05,

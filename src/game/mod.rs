@@ -1,15 +1,15 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
-use sdl2::hint::Hint::Default;
 use sdl2::render::WindowCanvas;
+use crate::characters::CharacterType;
 use crate::assets::geometry::SpriteAsset;
 use crate::config::PhysicsConfig;
 use crate::game::action::Direction;
 use crate::game::default::DefaultGame;
 use crate::game::event::GameEvent;
 use crate::game::physics::Body;
-use crate::game::scale::WorldScale;
+use crate::game::scale::PhysicsScale;
 use crate::game::sync::AsyncGame;
 
 pub mod event;
@@ -23,15 +23,17 @@ mod default;
 
 pub trait Game {
     fn push(&mut self, direction: Direction);
-    fn spawn(&mut self, sprite: SpriteAsset);
+    fn spawn_asset(&mut self, sprite: SpriteAsset);
+    fn spawn_character(&mut self, character: CharacterType);
     fn destroy(&mut self, id: u128);
+    fn explosion(&mut self);
     fn update(&mut self, delta: Duration) -> Vec<GameEvent>;
     fn bodies(&self) -> Vec<Body>;
     fn debug_draw(&self);
 }
 
 pub fn game<C: Into<Option<Rc<RefCell<WindowCanvas>>>>>(
-    scale: WorldScale,
+    scale: PhysicsScale,
     physics_config: PhysicsConfig,
     canvas: C
 ) -> Box<dyn Game> {

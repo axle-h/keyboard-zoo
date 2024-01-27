@@ -1,6 +1,7 @@
 use std::thread;
 use std::sync::mpsc::{channel, Receiver, Sender, SendError};
 use std::time::Duration;
+use crate::characters::CharacterType;
 use crate::assets::geometry::SpriteAsset;
 use crate::config::PhysicsConfig;
 use crate::frame_rate::FrameRate;
@@ -9,7 +10,7 @@ use crate::game::default::DefaultGame;
 use crate::game::event::GameEvent;
 use crate::game::Game;
 use crate::game::physics::Body;
-use crate::game::scale::WorldScale;
+use crate::game::scale::PhysicsScale;
 
 const UPDATE_FREQ: f64 = 1.0 / 60.0;
 
@@ -17,7 +18,9 @@ const UPDATE_FREQ: f64 = 1.0 / 60.0;
 enum GameSyncCommand {
     Quit,
     Push(Direction),
-    Spawn(SpriteAsset),
+    Explosion,
+    SpawnAsset(SpriteAsset),
+    SpawnCharacter(CharacterType),
     Destroy(u128),
 }
 
@@ -34,7 +37,7 @@ pub struct AsyncGame {
 }
 
 impl AsyncGame {
-    pub fn new(scale: WorldScale, physics_config: PhysicsConfig) -> Self {
+    pub fn new(scale: PhysicsScale, physics_config: PhysicsConfig) -> Self {
         let (event_tx, event_rx) = channel();
         let (command_tx, command_rx) = channel();
         let sync = AsyncGame { event_rx, command_tx, latest_bodies: vec![] };
@@ -63,12 +66,20 @@ impl Game for AsyncGame {
         self.command_tx.send(GameSyncCommand::Push(direction)).unwrap();
     }
 
-    fn spawn(&mut self, sprite: SpriteAsset) {
-        self.command_tx.send(GameSyncCommand::Spawn(sprite)).unwrap();
+    fn spawn_asset(&mut self, sprite: SpriteAsset) {
+        self.command_tx.send(GameSyncCommand::SpawnAsset(sprite)).unwrap();
+    }
+
+    fn spawn_character(&mut self, character: CharacterType) {
+        self.command_tx.send(GameSyncCommand::SpawnCharacter(character)).unwrap();
     }
 
     fn destroy(&mut self, id: u128) {
         self.command_tx.send(GameSyncCommand::Destroy(id)).unwrap();
+    }
+
+    fn explosion(&mut self) {
+        self.command_tx.send(GameSyncCommand::Explosion).unwrap();
     }
 
     fn update(&mut self, delta: Duration) -> Vec<GameEvent> {
@@ -104,8 +115,10 @@ impl GameThread {
             match command {
                 GameSyncCommand::Quit => return Err("received quit command".to_string()),
                 GameSyncCommand::Push(direction) => self.game.push(direction),
-                GameSyncCommand::Spawn(asset) => self.game.spawn(asset),
+                GameSyncCommand::SpawnAsset(asset) => self.game.spawn_asset(asset),
                 GameSyncCommand::Destroy(id) => self.game.destroy(id),
+                GameSyncCommand::SpawnCharacter(character) => self.game.spawn_character(character),
+                GameSyncCommand::Explosion => self.game.explosion(),
             }
         }
         for event in self.game.update(delta).into_iter() {

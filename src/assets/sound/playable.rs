@@ -1,13 +1,17 @@
-use sdl2::mixer::Chunk;
+use sdl2::mixer::{Channel, Chunk};
 
 pub trait Playable {
-    fn play(&self) -> Result<(), String>;
+    fn play(&self) -> Result<Channel, String>;
+
+    fn try_play(&self);
 }
 
 impl Playable for Chunk {
-    fn play(&self) -> Result<(), String> {
-        // TODO ignore cannot play sound
-        sdl2::mixer::Channel::all().play(self, 0)?;
-        Ok(())
+    fn play(&self) -> Result<Channel, String> {
+        Channel::all().play(self, 0)
+    }
+
+    fn try_play(&self) {
+        let _ = self.play();
     }
 }

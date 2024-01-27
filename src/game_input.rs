@@ -2,6 +2,7 @@ use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use std::collections::HashMap;
 use std::time::Duration;
+use crate::characters::CharacterType;
 use crate::config::{GameInputConfig, InputConfig};
 
 const AUTO_REPEAT_DELAY: Duration = Duration::from_millis(300);
@@ -13,13 +14,16 @@ pub enum GameInputKey {
     Down,
     Left,
     Right,
-    Spawn(char),
-    SpawnRandom,
+    SpawnAsset(char),
+    SpawnRandomAsset,
+    SpawnCharacter(CharacterType),
+    SpawnRandomCharacter,
     Nuke,
     Quit,
+    Explosion,
 }
 
-#[derive(Hash, Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Hash, Clone, Debug, PartialEq, Eq)]
 struct GameInput {
     key: GameInputKey,
     duration: Duration,
@@ -120,53 +124,55 @@ impl GameInputContext {
     fn input_map(config: InputConfig) -> HashMap<Keycode, GameInputKey> {
         let mut map = match config.game {
             GameInputConfig::BabySmash => HashMap::from([
-                (Keycode::A, GameInputKey::Spawn('A')),
-                (Keycode::B, GameInputKey::Spawn('B')),
-                (Keycode::C, GameInputKey::Spawn('C')),
-                (Keycode::D, GameInputKey::Spawn('D')),
-                (Keycode::E, GameInputKey::Spawn('E')),
-                (Keycode::F, GameInputKey::Spawn('F')),
-                (Keycode::G, GameInputKey::Spawn('G')),
-                (Keycode::H, GameInputKey::Spawn('H')),
-                (Keycode::I, GameInputKey::Spawn('I')),
-                (Keycode::J, GameInputKey::Spawn('J')),
-                (Keycode::K, GameInputKey::Spawn('K')),
-                (Keycode::L, GameInputKey::Spawn('L')),
-                (Keycode::M, GameInputKey::Spawn('M')),
-                (Keycode::N, GameInputKey::Spawn('N')),
-                (Keycode::O, GameInputKey::Spawn('O')),
-                (Keycode::P, GameInputKey::Spawn('P')),
-                (Keycode::Q, GameInputKey::Spawn('Q')),
-                (Keycode::R, GameInputKey::Spawn('R')),
-                (Keycode::S, GameInputKey::Spawn('S')),
-                (Keycode::T, GameInputKey::Spawn('T')),
-                (Keycode::U, GameInputKey::Spawn('U')),
-                (Keycode::V, GameInputKey::Spawn('V')),
-                (Keycode::W, GameInputKey::Spawn('W')),
-                (Keycode::X, GameInputKey::Spawn('X')),
-                (Keycode::Y, GameInputKey::Spawn('Y')),
-                (Keycode::Z, GameInputKey::Spawn('Z')),
-                (Keycode::Num0, GameInputKey::Spawn('0')),
-                (Keycode::Num1, GameInputKey::Spawn('1')),
-                (Keycode::Num2, GameInputKey::Spawn('2')),
-                (Keycode::Num3, GameInputKey::Spawn('3')),
-                (Keycode::Num4, GameInputKey::Spawn('4')),
-                (Keycode::Num5, GameInputKey::Spawn('5')),
-                (Keycode::Num6, GameInputKey::Spawn('6')),
-                (Keycode::Num7, GameInputKey::Spawn('7')),
-                (Keycode::Num8, GameInputKey::Spawn('8')),
-                (Keycode::Num9, GameInputKey::Spawn('9'))
+                (Keycode::A, GameInputKey::SpawnAsset('A')),
+                (Keycode::B, GameInputKey::SpawnAsset('B')),
+                (Keycode::C, GameInputKey::SpawnAsset('C')),
+                (Keycode::D, GameInputKey::SpawnAsset('D')),
+                (Keycode::E, GameInputKey::SpawnAsset('E')),
+                (Keycode::F, GameInputKey::SpawnAsset('F')),
+                (Keycode::G, GameInputKey::SpawnAsset('G')),
+                (Keycode::H, GameInputKey::SpawnAsset('H')),
+                (Keycode::I, GameInputKey::SpawnAsset('I')),
+                (Keycode::J, GameInputKey::SpawnAsset('J')),
+                (Keycode::K, GameInputKey::SpawnAsset('K')),
+                (Keycode::L, GameInputKey::SpawnAsset('L')),
+                (Keycode::M, GameInputKey::SpawnAsset('M')),
+                (Keycode::N, GameInputKey::SpawnAsset('N')),
+                (Keycode::O, GameInputKey::SpawnAsset('O')),
+                (Keycode::P, GameInputKey::SpawnAsset('P')),
+                (Keycode::Q, GameInputKey::SpawnAsset('Q')),
+                (Keycode::R, GameInputKey::SpawnAsset('R')),
+                (Keycode::S, GameInputKey::SpawnAsset('S')),
+                (Keycode::T, GameInputKey::SpawnAsset('T')),
+                (Keycode::U, GameInputKey::SpawnAsset('U')),
+                (Keycode::V, GameInputKey::SpawnAsset('V')),
+                (Keycode::W, GameInputKey::SpawnAsset('W')),
+                (Keycode::X, GameInputKey::SpawnAsset('X')),
+                (Keycode::Y, GameInputKey::SpawnAsset('Y')),
+                (Keycode::Z, GameInputKey::SpawnAsset('Z')),
+                (Keycode::Num0, GameInputKey::SpawnAsset('0')),
+                (Keycode::Num1, GameInputKey::SpawnAsset('1')),
+                (Keycode::Num2, GameInputKey::SpawnAsset('2')),
+                (Keycode::Num3, GameInputKey::SpawnAsset('3')),
+                (Keycode::Num4, GameInputKey::SpawnAsset('4')),
+                (Keycode::Num5, GameInputKey::SpawnAsset('5')),
+                (Keycode::Num6, GameInputKey::SpawnAsset('6')),
+                (Keycode::Num7, GameInputKey::SpawnAsset('7')),
+                (Keycode::Num8, GameInputKey::SpawnAsset('8')),
+                (Keycode::Num9, GameInputKey::SpawnAsset('9'))
             ]),
             GameInputConfig::Arcade(arcade) => HashMap::from([
-                (arcade.spawn, GameInputKey::SpawnRandom)
+                (arcade.spawn_asset, GameInputKey::SpawnRandomAsset),
             ])
         };
 
+        map.insert(config.spawn_character, GameInputKey::SpawnRandomCharacter);
         map.insert(config.up, GameInputKey::Up);
         map.insert(config.down, GameInputKey::Down);
         map.insert(config.left, GameInputKey::Left);
         map.insert(config.right, GameInputKey::Right);
         map.insert(config.nuke, GameInputKey::Nuke);
+        map.insert(config.explosion, GameInputKey::Explosion);
 
         map
     }

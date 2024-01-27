@@ -1,5 +1,6 @@
 use crate::particles::meta::ParticleSprite::*;
 use sdl2::rect::Rect;
+use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 use crate::game::polygon::Triangle;
 
@@ -74,6 +75,10 @@ impl ParticleSprite {
         Star01, Star02, Star03, Star04, Star05, Star06, Star07, Star08, Star09,
     ];
     pub const HOLLOW_CIRCLES: [ParticleSprite; 4] = [Circle01, Circle02, Circle03, Circle04];
+
+    pub fn all_sprite_based() -> Vec<Self> {
+        Self::iter().filter(|s| s.snip().is_some()).collect()
+    }
 
     pub fn snip(&self) -> Option<Rect> {
         match self {

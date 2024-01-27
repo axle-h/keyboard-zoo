@@ -9,7 +9,6 @@ use sdl2::render::{BlendMode, Texture, TextureCreator, WindowCanvas};
 use sdl2::video::WindowContext;
 use std::collections::HashMap;
 use std::time::Duration;
-use strum::IntoEnumIterator;
 
 const SPRITES: &[u8] = include_bytes!("sprites.png");
 const BASE_SCALE: f64 = 0.05;
@@ -30,8 +29,8 @@ impl<'a> ParticleRender<'a> {
         let mut sprites = texture_creator.load_texture_bytes(SPRITES)?;
         sprites.set_blend_mode(BlendMode::Blend);
 
-        let sprite_snips = ParticleSprite::iter()
-            .filter(|s| s.snip().is_some())
+        let sprite_snips = ParticleSprite::all_sprite_based()
+            .into_iter()
             .map(|s| (s, s.snip().unwrap()))
             .collect();
 

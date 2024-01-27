@@ -11,6 +11,8 @@ mod game_input;
 mod game;
 mod particles;
 mod animate;
+mod texture;
+mod characters;
 
 use crate::keyboard_zoo::KeyboardZoo;
 use fork::{fork, Fork};

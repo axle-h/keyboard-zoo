@@ -35,7 +35,7 @@ impl Config {
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct ArcadeInputs {
     #[serde(with = "KeycodeDef")]
-    pub spawn: Keycode,
+    pub spawn_asset: Keycode,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
@@ -60,6 +60,10 @@ pub struct InputConfig {
     pub right: Keycode,
     #[serde(with = "KeycodeDef")]
     pub nuke: Keycode,
+    #[serde(with = "KeycodeDef")]
+    pub explosion: Keycode,
+    #[serde(with = "KeycodeDef")]
+    pub spawn_character: Keycode,
 
     pub game: GameInputConfig
 }
@@ -105,7 +109,9 @@ pub struct PhysicsConfig {
     pub push_force_magnitude: f32,
     pub body_density: f32,
     pub body_friction: f32,
-    pub body_restitution: f32
+    pub body_restitution: f32,
+    pub explosion_force_magnitude: f32,
+    pub explosion_distance: f32
 }
 
 impl Default for Config {
@@ -118,8 +124,13 @@ impl Default for Config {
                 left: Keycode::Left,
                 right: Keycode::Right,
                 nuke: Keycode::Backspace,
+                explosion: Keycode::Space,
+                spawn_character: Keycode::RShift,
+                game: GameInputConfig::BabySmash
                 // TODO should not be the default
-                game: GameInputConfig::Arcade(ArcadeInputs { spawn: Keycode::Return }),
+                // game: GameInputConfig::Arcade(ArcadeInputs {
+                //     spawn_asset: Keycode::Return,
+                // }),
             },
             video: VideoConfig {
                 mode: VideoMode::Window {
@@ -135,15 +146,17 @@ impl Default for Config {
             },
             physics: PhysicsConfig {
                 debug_draw: false,
-                pixels_per_meter: 1.0,
-                polygon_scale: 200.0,
-                velocity_iterations: 2,
-                position_iterations: 1,
-                gravity: 10.0, // positive gravity as we are rendering upside down when converting between sdl & box2d
-                push_force_magnitude: 10000000.0,
-                body_density: 1.0,
+                pixels_per_meter: 10.0,
+                polygon_scale: 20.0,
+                velocity_iterations: 8,
+                position_iterations: 3,
+                gravity: 1.0, // positive gravity as we are rendering upside down when converting between sdl & box2d
+                push_force_magnitude: 2.0,
+                body_density: 0.001,
                 body_friction: 0.3,
                 body_restitution: 0.5,
+                explosion_force_magnitude: 200.0,
+                explosion_distance: 100.0,
             }
         }
     }

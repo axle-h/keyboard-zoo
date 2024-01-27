@@ -1,6 +1,6 @@
 use std::time::{Duration, SystemTime};
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)]
 pub struct FrameRate {
     t0: SystemTime,
 }

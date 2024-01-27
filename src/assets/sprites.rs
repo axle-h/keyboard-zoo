@@ -7,7 +7,7 @@ use sdl2::rect::Rect;
 use sdl2::render::{Texture, TextureCreator, WindowCanvas};
 use sdl2::video::WindowContext;
 use crate::assets::geometry::{SpriteAsset, SpriteAssetSheet};
-use crate::game::physics::Body;
+use crate::game::physics::{AssetBody, Body};
 
 const SPRITES_JSON: &[u8] = include_bytes!("sprites.json");
 const SPRITES_PNG: &[u8] = include_bytes!("sprites.png");
@@ -64,8 +64,8 @@ impl<'a> Sprites<'a> {
         self.sprites.choose(&mut self.rng).cloned().unwrap()
     }
 
-    pub fn draw_sprite(&self, canvas: &mut WindowCanvas, body: Body) -> Result<(), String> {
-        if let Some(sprite) = self.sprites_by_name.get(body.sprite_name()) {
+    pub fn draw_sprite(&self, canvas: &mut WindowCanvas, body: AssetBody) -> Result<(), String> {
+        if let Some(sprite) = self.sprites_by_name.get(body.asset_name()) {
             let snip = sprite.snip();
             canvas.copy_ex(
                 &self.texture,
@@ -77,7 +77,7 @@ impl<'a> Sprites<'a> {
                 false
             )
         } else {
-            Err(format!("unknown sprite {}", body.sprite_name()))
+            Err(format!("unknown sprite {}", body.asset_name()))
         }
     }
 }

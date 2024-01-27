@@ -29,6 +29,8 @@ const SOUND_CREATE_DIR: &str = "./src/assets/sound/create";
 const SOUND_CREATE_MOD: &str = "./src/assets/sound/create/mod.rs";
 const SOUND_DESTROY_DIR: &str = "./src/assets/sound/destroy";
 const SOUND_DESTROY_MOD: &str = "./src/assets/sound/destroy/mod.rs";
+const SOUND_EXPLOSION_DIR: &str = "./src/assets/sound/explosion";
+const SOUND_EXPLOSION_MOD: &str = "./src/assets/sound/explosion/mod.rs";
 const MUSIC_DIR: &str = "./src/assets/sound/music";
 const MUSIC_MOD: &str = "./src/assets/sound/music/mod.rs";
 
@@ -64,6 +66,7 @@ fn build_assets() -> Result<(), String> {
         && Path::new(SPRITES_PNG).exists()
         && Path::new(SOUND_CREATE_MOD).exists()
         && Path::new(SOUND_DESTROY_MOD).exists()
+        && Path::new(SOUND_EXPLOSION_MOD).exists()
         && Path::new(MUSIC_MOD).exists(){
         return Ok(());
     }
@@ -122,6 +125,11 @@ fn build_assets() -> Result<(), String> {
     simple_asset_mod_file(
         SOUND_DESTROY_MOD,
         load_sound_assets(SOUND_DESTROY_DIR)?
+    )?;
+
+    simple_asset_mod_file(
+        SOUND_EXPLOSION_MOD,
+        load_sound_assets(SOUND_EXPLOSION_DIR)?
     )?;
 
     simple_asset_mod_file(

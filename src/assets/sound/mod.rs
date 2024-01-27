@@ -12,16 +12,18 @@ use crate::assets::sound::playable::Playable;
 use crate::config::AudioConfig;
 
 mod create;
-mod playable;
+pub mod playable;
 mod destroy;
 mod music;
+mod explosion;
 
 static mut MUSIC_QUEUE: Option<Rc<RefCell<VecDeque<Music<'static>>>>> = None;
 
 pub struct Sound {
     rng: ThreadRng,
     create_sounds: HashMap<String, Chunk>,
-    destroy_sounds: Vec<Chunk>
+    destroy_sounds: Vec<Chunk>,
+    explosion_sounds: Vec<Chunk>
 }
 
 impl Sound {
@@ -37,19 +39,25 @@ impl Sound {
             .map(|b| config.load_chunk(b).unwrap())
             .collect();
 
-        Ok(Self { rng: thread_rng(), create_sounds, destroy_sounds })
+        let explosion_sounds = explosion::ASSETS.into_iter()
+            .map(|b| config.load_chunk(b).unwrap())
+            .collect();
+
+        Ok(Self { rng: thread_rng(), create_sounds, destroy_sounds, explosion_sounds })
     }
 
-    pub fn play_create(&self, name: &str) -> Result<(), String> {
+    pub fn play_create(&self, name: &str) {
         if let Some(chunk) = self.create_sounds.get(name) {
-            chunk.play()
-        } else {
-            Err(format!("no such asset {}", name))
+            chunk.try_play();
         }
     }
 
-    pub fn play_destroy(&mut self) -> Result<(), String> {
-        self.destroy_sounds.choose(&mut self.rng).unwrap().play()
+    pub fn play_destroy(&mut self) {
+        self.destroy_sounds.choose(&mut self.rng).unwrap().try_play();
+    }
+
+    pub fn play_explosion(&mut self) {
+        self.explosion_sounds.choose(&mut self.rng).unwrap().try_play();
     }
 
     pub fn play_music(&mut self) -> Result<(), String> {

@@ -6,13 +6,13 @@ use crate::config::PhysicsConfig;
 use crate::game::polygon::Triangle;
 
 #[derive(Debug, Clone)]
-pub struct WorldScale {
+pub struct PhysicsScale {
     config: PhysicsConfig,
     width: u32,
     height: u32
 }
 
-impl WorldScale {
+impl PhysicsScale {
     pub fn new(width: u32, height: u32, config: PhysicsConfig) -> Self {
         Self { width, height, config }
     }

@@ -5,5 +5,6 @@ pub enum Direction {
 
 #[derive(Debug, Clone, Copy)]
 pub enum PhysicsAction {
-    Push(Direction)
+    Push(Direction),
+    Explode
 }

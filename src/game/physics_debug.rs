@@ -5,16 +5,16 @@ use box2d_rs::b2_math::{B2Transform, B2vec2};
 use sdl2::gfx::primitives::DrawRenderer;
 use sdl2::pixels::Color;
 use sdl2::render::WindowCanvas;
-use crate::game::scale::WorldScale;
+use crate::game::scale::PhysicsScale;
 
 pub struct SdlPhysicsDraw {
     base: B2draw,
     canvas: Rc<RefCell<WindowCanvas>>,
-    scale: WorldScale
+    scale: PhysicsScale
 }
 
 impl<'a> SdlPhysicsDraw {
-    pub fn new(canvas: Rc<RefCell<WindowCanvas>>, scale: WorldScale) -> Self {
+    pub fn new(canvas: Rc<RefCell<WindowCanvas>>, scale: PhysicsScale) -> Self {
         let mut base: B2draw = Default::default();
         base.set_flags(B2drawShapeFlags::all());
         Self { canvas, base, scale }

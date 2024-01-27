@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
+use rand::{Rng, thread_rng};
 use crate::build_info::nice_app_name;
 use crate::config::{Config, VideoMode};
 use crate::frame_rate::FrameRate;
@@ -16,17 +17,18 @@ use sdl2::rect::Rect;
 use sdl2::video::WindowContext;
 use crate::animate::Animations;
 use crate::animate::event::AnimationEvent;
+use crate::characters::render::CharacterRender;
 use crate::assets::sound::Sound;
 use crate::assets::sprites::Sprites;
 use crate::game::action::Direction;
 use crate::game::event::GameEvent;
 use crate::game::{Game, game};
 use crate::game::physics::Body;
-use crate::game::scale::WorldScale;
+use crate::game::scale::PhysicsScale;
 use crate::game_input::{GameInputContext, GameInputKey};
-use crate::particles;
+use crate::{characters, particles};
 use crate::particles::Particles;
-use crate::particles::prescribed::{prescribed_fireworks, prescribed_orbit, sprite_lattice_source, sprite_triangle_source};
+use crate::particles::prescribed::{fireworks, orbit, sprite_lattice_source, sprite_triangle_source};
 use crate::particles::render::ParticleRender;
 use crate::particles::source::ParticleSource;
 
@@ -121,7 +123,7 @@ impl KeyboardZoo {
 
     fn orbit_particle_source(&self) -> Box<dyn ParticleSource> {
         let (window_width, window_height) = self.canvas.borrow().window().size();
-        prescribed_orbit(
+        orbit(
             Rect::new(0, 0, window_width, window_height),
             &self.particle_scale,
         )
@@ -129,7 +131,7 @@ impl KeyboardZoo {
 
     fn fireworks_source(&self) -> Box<dyn ParticleSource> {
         let (window_width, window_height) = self.canvas.borrow().window().size();
-        prescribed_fireworks(
+        fireworks(
             Rect::new(0, 0, window_width, window_height),
             &self.particle_scale,
         )
@@ -148,12 +150,14 @@ impl KeyboardZoo {
             self.particle_scale
         )?;
 
+        let mut character_render = CharacterRender::new(&self.texture_creator)?;
         let mut sprites = Sprites::new(&self.texture_creator)?;
         let mut sound = Sound::new(sprites.names(), self.config.audio)?;
+        let mut character_sound  = characters::sound(self.config.audio)?;
 
         let mut inputs = GameInputContext::new(self.config.input);
         let (width, height) = self.canvas.borrow().window().size();
-        let scale = WorldScale::new(width, height, self.config.physics);
+        let scale = PhysicsScale::new(width, height, self.config.physics);
         let mut game = game(scale, self.config.physics, self.canvas.clone());
 
         let mut animations = Animations::new();
@@ -165,6 +169,7 @@ impl KeyboardZoo {
         bg_particles.add_source(self.orbit_particle_source());
         //bg_particles.add_source(self.fireworks_source());
 
+        let mut rng = thread_rng();
         sound.play_music()?;
         'game: loop {
             let delta = frame_rate.update()?;
@@ -175,12 +180,15 @@ impl KeyboardZoo {
                     GameInputKey::Down => game.push(Direction::Down),
                     GameInputKey::Left => game.push(Direction::Left),
                     GameInputKey::Right => game.push(Direction::Right),
-                    GameInputKey::Spawn(ch) => {
-                        sprites.pick_sprite_by_char(ch).map(|sprite| game.spawn(sprite));
+                    GameInputKey::SpawnAsset(ch) => {
+                        sprites.pick_sprite_by_char(ch).map(|sprite| game.spawn_asset(sprite));
                     },
+                    GameInputKey::SpawnRandomAsset => game.spawn_asset(sprites.pick_random_sprite()),
+                    GameInputKey::SpawnCharacter(character) => game.spawn_character(character),
+                    GameInputKey::SpawnRandomCharacter => game.spawn_character(rng.gen()),
                     GameInputKey::Nuke => animations.nuke(game.bodies().into_iter().map(|b| b.id()).collect()),
+                    GameInputKey::Explosion => game.explosion(),
                     GameInputKey::Quit => break 'game,
-                    GameInputKey::SpawnRandom => game.spawn(sprites.pick_random_sprite())
                 }
             }
 
@@ -194,14 +202,39 @@ impl KeyboardZoo {
             for event in game.update(physics_delta).into_iter() {
                 match event {
                     GameEvent::Spawned(body) => {
-                        sound.play_create(body.sprite_name())?;
-                        fg_particles.add_source(sprite_lattice_source(body, &self.particle_scale));
+                        match body {
+                            Body::Asset(asset_body) => {
+                                sound.play_create(asset_body.asset_name());
+                                fg_particles.add_source(sprite_lattice_source(asset_body, &self.particle_scale));
+                            }
+                            Body::Character(character_body) => {
+                                character_sound.play_create(character_body.character().character_type())?;
+                            }
+                        }
                     }
                     GameEvent::Destroy(body) => {
-                        for triangle in body.polygons().iter() {
-                            fg_particles.add_source(sprite_triangle_source(*triangle, &self.particle_scale));
+                        match body {
+                            Body::Asset(asset_body) => {
+                                for triangle in asset_body.polygons().iter() {
+                                    fg_particles.add_source(sprite_triangle_source(*triangle, &self.particle_scale));
+                                }
+                                sound.play_destroy();
+                            }
+                            Body::Character(character_body) => {
+                                character_sound.play_destroy(character_body.character().character_type())?;
+                                // TODO particles?
+                            }
                         }
-                        sound.play_destroy()?;
+
+                    }
+                    GameEvent::CharacterAttack(character) => {
+                        character_sound.play_attack(character)?;
+                    }
+                    GameEvent::Explosion { x, y } => {
+                        fg_particles.add_source(
+                            particles::prescribed::explosion((x, y), &self.particle_scale)
+                        );
+                        sound.play_explosion();
                     }
                 }
             }
@@ -218,7 +251,7 @@ impl KeyboardZoo {
                 // draw bg particles
                 bg_particles.draw(&mut self.canvas.borrow_mut())?;
 
-                self.draw_bodies(&mut sprites, game.bodies())?;
+                self.draw_bodies(&mut sprites, &mut character_render, game.bodies())?;
 
                 // draw fg particles
                 fg_particles.draw(&mut self.canvas.borrow_mut())?;
@@ -231,10 +264,18 @@ impl KeyboardZoo {
         Ok(())
     }
 
-    fn draw_bodies(&self, sprites: &mut Sprites, bodies: Vec<Body>) -> Result<(), String> {
+    fn draw_bodies(&self, sprites: &mut Sprites, character_render: &mut CharacterRender, bodies: Vec<Body>) -> Result<(), String> {
         let mut canvas = self.canvas.borrow_mut();
         for body in bodies.into_iter() {
-            sprites.draw_sprite(&mut canvas, body)?;
+            match body {
+                Body::Asset(asset_body) => {
+                    sprites.draw_sprite(&mut canvas, asset_body)?;
+                }
+                Body::Character(character_body) => {
+                    character_render.draw_character(&mut canvas, character_body)?;
+                }
+            }
+
         }
         Ok(())
     }
