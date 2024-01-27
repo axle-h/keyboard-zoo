@@ -3,7 +3,7 @@ use sdl2::keyboard::Keycode;
 use std::collections::HashMap;
 use std::time::Duration;
 use crate::characters::CharacterType;
-use crate::config::{GameInputConfig, InputConfig};
+use crate::config::InputConfig;
 
 const AUTO_REPEAT_DELAY: Duration = Duration::from_millis(300);
 const AUTO_REPEAT_ITERATION: Duration = Duration::from_millis(25);
@@ -122,8 +122,8 @@ impl GameInputContext {
     }
 
     fn input_map(config: InputConfig) -> HashMap<Keycode, GameInputKey> {
-        let mut map = match config.game {
-            GameInputConfig::BabySmash => HashMap::from([
+        let mut map = if config.baby_smash_mode {
+            HashMap::from([
                 (Keycode::A, GameInputKey::SpawnAsset('A')),
                 (Keycode::B, GameInputKey::SpawnAsset('B')),
                 (Keycode::C, GameInputKey::SpawnAsset('C')),
@@ -160,10 +160,9 @@ impl GameInputContext {
                 (Keycode::Num7, GameInputKey::SpawnAsset('7')),
                 (Keycode::Num8, GameInputKey::SpawnAsset('8')),
                 (Keycode::Num9, GameInputKey::SpawnAsset('9'))
-            ]),
-            GameInputConfig::Arcade(arcade) => HashMap::from([
-                (arcade.spawn_asset, GameInputKey::SpawnRandomAsset),
             ])
+        } else {
+            HashMap::new()
         };
 
         map.insert(config.spawn_character, GameInputKey::SpawnRandomCharacter);

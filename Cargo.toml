@@ -34,12 +34,17 @@ serde_derive = "1.0.163"
 confy = { version = "0.5.1", default-features = false, features = ["yaml_conf"] }
 titlecase = "2.2.1"
 build-info = { version = "0.0.34", default-features = false, features = [] }
-fork = "0.1.22"
 serde_json = "1.0.108"
 box2d-rs = "0.0.4"
 rand = "0.8.5"
 strum = { version = "0.25", features = ["derive"] }
 strum_macros = "0.25"
+
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3.9", features = ["wincon"] }
+
+[target.'cfg(unix)'.dependencies]
+fork = "0.1.22"
 
 [profile.release]
 strip = "symbols"

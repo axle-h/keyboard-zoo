@@ -804,6 +804,7 @@ dependencies = [
  "svg-path-parser",
  "texture_packer",
  "titlecase",
+ "winapi",
 ]
 
 [[package]]

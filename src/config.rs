@@ -5,6 +5,7 @@ use sdl2::mixer::MAX_VOLUME;
 use serde::{Deserialize, Serialize};
 
 pub const APP_CONFIG_ROOT: &str = APP_NAME;
+const CONFIG_NAME: &str = "config";
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct Config {
@@ -16,14 +17,18 @@ pub struct Config {
 
 impl Config {
     pub fn load() -> Result<Self, String> {
-        match confy::load(APP_CONFIG_ROOT, "config") {
+        let config_path = confy::get_configuration_file_path(APP_CONFIG_ROOT, CONFIG_NAME)
+            .map_err(|e| e.to_string())?;
+
+        #[cfg(debug_assertions)]
+        println!("loading config: {}", config_path.to_str().unwrap());
+
+        match confy::load(APP_CONFIG_ROOT, CONFIG_NAME) {
             Ok(config) => Ok(config),
             Err(ConfyError::BadYamlData(error)) => {
-                let path = confy::get_configuration_file_path(APP_CONFIG_ROOT, "config")
-                    .map_err(|e| e.to_string())?;
                 Err(format!(
                     "Bad config file at {}, {}",
-                    path.to_str().unwrap(),
+                    config_path.to_str().unwrap(),
                     error
                 ))
             }
@@ -33,22 +38,9 @@ impl Config {
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-pub struct ArcadeInputs {
-    #[serde(with = "KeycodeDef")]
-    pub spawn_asset: Keycode,
-}
-
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-pub enum GameInputConfig {
-    /// For running on a keyboard: alpha keys spawn assets starting with the same first letter.
-    BabySmash,
-    /// For running on arcade style controls: dedicated spawn button.
-    Arcade(ArcadeInputs)
-}
-
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct InputConfig {
     pub run_toddler_sandbox: bool,
+    pub baby_smash_mode: bool,
 
     #[serde(with = "KeycodeDef")]
     pub up: Keycode,
@@ -64,8 +56,8 @@ pub struct InputConfig {
     pub explosion: Keycode,
     #[serde(with = "KeycodeDef")]
     pub spawn_character: Keycode,
-
-    pub game: GameInputConfig
+    #[serde(with = "KeycodeDef")]
+    pub spawn_asset: Keycode,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
@@ -119,6 +111,7 @@ impl Default for Config {
         Self {
             input: InputConfig {
                 run_toddler_sandbox: false,
+                baby_smash_mode: true,
                 up: Keycode::Up,
                 down: Keycode::Down,
                 left: Keycode::Left,
@@ -126,11 +119,7 @@ impl Default for Config {
                 nuke: Keycode::Backspace,
                 explosion: Keycode::Space,
                 spawn_character: Keycode::RShift,
-                game: GameInputConfig::BabySmash
-                // TODO should not be the default
-                // game: GameInputConfig::Arcade(ArcadeInputs {
-                //     spawn_asset: Keycode::Return,
-                // }),
+                spawn_asset: Keycode::Return,
             },
             video: VideoConfig {
                 mode: VideoMode::Window {
