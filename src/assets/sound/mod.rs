@@ -8,10 +8,11 @@ use sdl2::get_error;
 use sdl2::mixer::{Chunk, Music};
 use sdl2::rwops::RWops;
 use sdl2::sys::mixer;
+use crate::assets::sound::letter::letter_sound;
 use crate::assets::sound::playable::Playable;
 use crate::config::AudioConfig;
 
-mod create;
+mod letter;
 pub mod playable;
 mod destroy;
 mod music;
@@ -21,19 +22,15 @@ static mut MUSIC_QUEUE: Option<Rc<RefCell<VecDeque<Music<'static>>>>> = None;
 
 pub struct Sound {
     rng: ThreadRng,
-    create_sounds: HashMap<String, Chunk>,
+    letter_sounds: HashMap<char, Chunk>,
     destroy_sounds: Vec<Chunk>,
     explosion_sounds: Vec<Chunk>
 }
 
 impl Sound {
-    pub fn new(names: Vec<String>, config: AudioConfig) -> Result<Self, String> {
-        let mut create_sounds = HashMap::new();
-
-        for name in names.into_iter() {
-            let create_chunk = config.load_chunk(create::asset(&name))?;
-            create_sounds.insert(name, create_chunk);
-        }
+    pub fn new(config: AudioConfig) -> Result<Self, String> {
+        let letter_sounds = ('a' ..= 'z')
+            .map(|ch| (ch, config.load_chunk(letter_sound(ch)).unwrap())).collect();
 
         let destroy_sounds = destroy::ASSETS.into_iter()
             .map(|b| config.load_chunk(b).unwrap())
@@ -43,11 +40,11 @@ impl Sound {
             .map(|b| config.load_chunk(b).unwrap())
             .collect();
 
-        Ok(Self { rng: thread_rng(), create_sounds, destroy_sounds, explosion_sounds })
+        Ok(Self { rng: thread_rng(), letter_sounds, destroy_sounds, explosion_sounds })
     }
 
-    pub fn play_create(&self, name: &str) {
-        if let Some(chunk) = self.create_sounds.get(name) {
+    pub fn play_letter(&self, ch: char) {
+        if let Some(chunk) = self.letter_sounds.get(&ch) {
             chunk.try_play();
         }
     }

@@ -152,7 +152,7 @@ impl KeyboardZoo {
 
         let mut character_render = CharacterRender::new(&self.texture_creator)?;
         let mut sprites = Sprites::new(&self.texture_creator)?;
-        let mut sound = Sound::new(sprites.names(), self.config.audio)?;
+        let mut sound = Sound::new(self.config.audio)?;
         let mut character_sound  = characters::sound(self.config.audio)?;
 
         let mut inputs = GameInputContext::new(self.config.input);
@@ -204,7 +204,7 @@ impl KeyboardZoo {
                     GameEvent::Spawned(body) => {
                         match body {
                             Body::Asset(asset_body) => {
-                                sound.play_create(asset_body.asset_name());
+                                sound.play_letter(asset_body.asset_character());
                                 fg_particles.add_source(sprite_lattice_source(asset_body, &self.particle_scale));
                             }
                             Body::Character(character_body) => {

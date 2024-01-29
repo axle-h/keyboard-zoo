@@ -126,15 +126,6 @@ pub struct SpriteRect {
 }
 
 impl SpriteRect {
-    pub fn new(x: f64, y: f64, width: f64, height: f64) -> Self {
-        Self {
-            x,
-            y,
-            width,
-            height,
-        }
-    }
-
     pub fn from_p1_p2(x1: f64, y1: f64, x2: f64, y2: f64) -> Self {
         Self {
             x: x1,
@@ -143,21 +134,10 @@ impl SpriteRect {
             height: y2 - y1,
         }
     }
-
-    pub fn lower_bound(&self) -> SpritePoint {
-        SpritePoint::new(self.x, self.y)
-    }
-
-    pub fn upper_bound(&self) -> SpritePoint {
-        SpritePoint::new(self.x + self.width, self.y + self.height)
-    }
-
     pub fn interior_points(&self) -> Vec<SpritePoint> {
         let mut result = vec![];
-        let lower_bound = self.lower_bound();
-        let upper_bound = self.upper_bound();
-        for x in lower_bound.x.floor() as u32 ..= upper_bound.x.ceil() as u32 {
-            for y in lower_bound.y.floor() as u32 ..= upper_bound.y.ceil() as u32 {
+        for x in self.x.floor() as u32 ..= (self.x + self.width).ceil() as u32 {
+            for y in self.y.floor() as u32 ..= (self.y + self.height).ceil() as u32 {
                 result.push(SpritePoint::new(x as f64, y as f64));
             }
         }
@@ -178,31 +158,81 @@ impl SpriteRect {
     }
 }
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Deserialize, Serialize)]
+pub struct SpriteSnip {
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32
+}
+
+impl SpriteSnip {
+    pub fn new(x: u32, y: u32, width: u32, height: u32) -> Self {
+        Self { x, y, width, height }
+    }
+
+    pub fn from_corners((x1, y1): (u32, u32), (x2, y2): (u32, u32)) -> Self {
+        Self::new(x1, y1, x2 - x1, y2 - y1)
+    }
+
+    pub fn bottom_right(&self) -> (u32, u32) {
+        (self.x + self.width, self.y + self.height)
+    }
+
+    pub fn center(&self) -> (u32, u32) {
+        (self.x + self.width / 2, self.y + self.height / 2)
+    }
+
+    pub fn contains(&self, other: &SpriteSnip) -> bool {
+        let (self_x2, self_y2) = self.bottom_right();
+        let (other_x2, other_y2) = other.bottom_right();
+
+        other.x >= self.x && other_x2 <= self_x2 && other.y >= self.y && other_y2 <= self_y2
+    }
+
+    pub fn x(&self) -> u32 {
+        self.x
+    }
+    pub fn y(&self) -> u32 {
+        self.y
+    }
+    pub fn width(&self) -> u32 {
+        self.width
+    }
+    pub fn height(&self) -> u32 {
+        self.height
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct SpriteAsset {
     name: String,
-    snip: SpriteRect,
+    character: char,
+    snip: SpriteSnip,
     triangles: Vec<SpriteTriangle>,
     unit_scale: f64
 }
 
 impl SpriteAsset {
-    pub fn new(name: String, snip: SpriteRect, triangles: Vec<SpriteTriangle>, unit_scale: f64) -> Self {
-        Self { name, snip, triangles, unit_scale }
+    pub fn new(name: String, character: char, snip: SpriteSnip, triangles: Vec<SpriteTriangle>, unit_scale: f64) -> Self {
+        Self { name, character, snip, triangles, unit_scale }
     }
 
     pub fn name(&self) -> &str {
         &self.name
     }
-    pub fn snip(&self) -> SpriteRect {
+    pub fn character(&self) -> char {
+        self.character
+    }
+    pub fn snip(&self) -> SpriteSnip {
         self.snip
     }
     pub fn triangles(&self) -> &Vec<SpriteTriangle> {
         &self.triangles
     }
 
-    pub fn aabb(&self) -> SpriteRect {
-        SpriteRect::new(0.0, 0.0, self.unit_scale * self.snip.width, self.unit_scale * self.snip.height)
+    pub fn triangle_scaled_dimensions(&self) -> (f64, f64) {
+        (self.unit_scale * self.snip.width as f64, self.unit_scale * self.snip.height as f64)
     }
 }
 

@@ -1,7 +1,6 @@
 /target
 
 # generated files
-src/assets/sound/create/mod.rs
 src/assets/sound/destroy/mod.rs
 src/assets/sound/music/mod.rs
 src/assets/sound/explosion/mod.rs

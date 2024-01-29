@@ -14,27 +14,28 @@ x86_64-pc-windows-msvc = { triplet = "x64-windows-static-md" }
 
 [build-dependencies]
 build-info-build = "0.0.34"
-embed-resource = "2.2"
-contour_tracing = { version = "1.0.12", features = ["image"] }
-image = "0.24.7"
-svg-path-parser = "0.1.1"
+embed-resource = "2.4.1"
+const_format = "0.2.32"
+image = "0.24.8"
+imageproc = "0.23.0"
 simplify-polyline = "0.5.0"
 poly2tri = "0.1.0"
 itertools = "0.12.0"
 serde = { version = "1.0", default-features = false, features = ["derive"] }
-serde_derive = "1.0.163"
-serde_json = "1.0.108"
-texture_packer = "0.27.0"
+serde_derive = "1.0"
+serde_json = "1.0"
+texture_packer = "0.27"
+rayon = "1.8.1"
 
 [dependencies]
 sdl2 = { version = "0.36.0", default-features = false, features = ["static-link","use-vcpkg","image","gfx","mixer","ttf"] }
 rdev = { version = "0.5.3", features = ["unstable_grab"] }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
-serde_derive = "1.0.163"
-confy = { version = "0.5.1", default-features = false, features = ["yaml_conf"] }
+serde_derive = "1.0"
+confy = { version = "0.6.0", default-features = false, features = ["yaml_conf"] }
 titlecase = "2.2.1"
 build-info = { version = "0.0.34", default-features = false, features = [] }
-serde_json = "1.0.108"
+serde_json = "1.0"
 box2d-rs = "0.0.4"
 rand = "0.8.5"
 strum = { version = "0.25", features = ["derive"] }

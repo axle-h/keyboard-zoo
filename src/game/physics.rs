@@ -51,6 +51,7 @@ pub struct AssetBody {
     aabb: Rect,
     angle: f64,
     asset_name: String,
+    asset_character: char,
     polygons: Vec<Triangle>,
 }
 
@@ -65,6 +66,10 @@ impl AssetBody {
 
     pub fn asset_name(&self) -> &str {
         &self.asset_name
+    }
+
+    pub fn asset_character(&self) -> char {
+        self.asset_character
     }
 
     pub fn angle(&self) -> f64 {
@@ -107,7 +112,7 @@ struct BodyData {
     id: u128,
     width: f32,
     height: f32,
-    asset_name: Option<String>,
+    asset_name: Option<(char, String)>,
     character: Option<Character>
 }
 
@@ -465,9 +470,9 @@ impl Physics {
     pub fn spawn_asset(&mut self, sprite: SpriteAsset) -> Vec<GameEvent> {
         let polygon_scale = self.config.polygon_scale;
 
-        let sprite_aabb = sprite.aabb();
-        let width = sprite_aabb.width() as f32 * polygon_scale;
-        let height = sprite_aabb.height() as f32 * polygon_scale;
+        let (sprite_width, sprite_height) = sprite.triangle_scaled_dimensions();
+        let width = sprite_width as f32 * polygon_scale;
+        let height = sprite_height as f32 * polygon_scale;
 
         let (position, to_destroy) = self.rng_spawn_position(width, height);
         let mut events = self.destroy_bodies(to_destroy);
@@ -476,7 +481,7 @@ impl Physics {
             id: self.rng.gen(),
             width,
             height,
-            asset_name: Some(sprite.name().to_string()),
+            asset_name: Some((sprite.character(), sprite.name().to_string())),
             character: None
         };
         let body_def = B2bodyDef {
@@ -496,8 +501,8 @@ impl Physics {
             ..B2fixtureDef::default()
         };
 
-        let offset_x = sprite_aabb.width() / 2.0;
-        let offset_y = sprite_aabb.height() / 2.0;
+        let offset_x = sprite_width / 2.0;
+        let offset_y = sprite_height / 2.0;
         for triangle in sprite.triangles().into_iter() {
             let points = triangle.points()
                 .map(|p| B2vec2::new(
@@ -545,7 +550,7 @@ impl Physics {
                     character,
                 };
                 Some(Body::Character(character_body))
-            } else if let Some(asset_name) = data.asset_name {
+            } else if let Some((asset_character, asset_name)) = data.asset_name {
                 let transform = body.get_transform();
                 let mut polygons = vec![];
                 for fixture in body.get_fixture_list().iter() {
@@ -563,6 +568,7 @@ impl Physics {
                 let asset_body = AssetBody {
                     id: data.id,
                     aabb,
+                    asset_character,
                     asset_name,
                     angle,
                     polygons,
@@ -665,12 +671,5 @@ impl Physics {
         }
 
         result
-    }
-
-    fn to_b2_aabb(&self, rect: SpriteRect) -> B2AABB {
-        B2AABB {
-            lower_bound: self.scale.point_to_b2d_vec2(rect.lower_bound()),
-            upper_bound: self.scale.point_to_b2d_vec2(rect.upper_bound()),
-        }
     }
 }
