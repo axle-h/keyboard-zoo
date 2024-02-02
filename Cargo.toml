@@ -16,7 +16,6 @@ x86_64-pc-windows-msvc = { triplet = "x64-windows-static-md" }
 [build-dependencies]
 build-info-build = "0.0.34"
 embed-resource = "2.4.1"
-const_format = "0.2.32"
 image = "0.24.8"
 imageproc = "0.23.0"
 simplify-polyline = "0.5.0"
@@ -27,7 +26,8 @@ serde_derive = "1.0"
 serde_json = "1.0"
 texture_packer = "0.27"
 rayon = "1.8.1"
-oxipng = { version = "9.0", features = ["parallel", "zopfli", "filetime"], default-features = false }
+imagequant = "4.3.0"
+png = "0.17.10"
 
 [dependencies]
 sdl2 = { version = "0.36.0", default-features = false, features = ["static-link","use-vcpkg","image","gfx","mixer","ttf"] }
@@ -42,6 +42,7 @@ box2d-rs = "0.0.4"
 rand = "0.8.5"
 strum = { version = "0.25", features = ["derive"] }
 strum_macros = "0.25"
+png = "0.17.10"
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3.9", features = ["wincon"] }
