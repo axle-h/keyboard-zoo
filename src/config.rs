@@ -1,3 +1,4 @@
+use std::fs;
 use crate::build_info::APP_NAME;
 use confy::ConfyError;
 use sdl2::keyboard::Keycode;
@@ -8,6 +9,7 @@ pub const APP_CONFIG_ROOT: &str = APP_NAME;
 const CONFIG_NAME: &str = "config";
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Config {
     pub input: InputConfig,
     pub video: VideoConfig,
@@ -26,11 +28,8 @@ impl Config {
         match confy::load(APP_CONFIG_ROOT, CONFIG_NAME) {
             Ok(config) => Ok(config),
             Err(ConfyError::BadYamlData(error)) => {
-                Err(format!(
-                    "Bad config file at {}, {}",
-                    config_path.to_str().unwrap(),
-                    error
-                ))
+                println!("Bad config file at {}, {}, loading defaults", config_path.to_str().unwrap(), error);
+                Ok(Self::default())
             }
             Err(error) => Err(format!("{}", error)),
         }

@@ -1,6 +1,7 @@
 # Keyboard Zoo
 
 TODO
+* numbers
 * more sprites
 * redo music & destroy sound
 * collision sound?

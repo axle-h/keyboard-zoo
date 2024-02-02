@@ -1,17 +1,19 @@
+mod build;
+
+
+use std::collections::HashMap;
 use image::{DynamicImage, GenericImage, GrayImage, ImageError, ImageFormat, imageops, Pixel, RgbaImage, SubImage};
 
 use itertools::Itertools;
 use std::fs;
 use std::fs::{DirEntry, File};
-use std::io::Write;
+use std::io::{Cursor, Write};
 use std::path::{Path, PathBuf};
-use std::time::SystemTime;
 use const_format::concatcp;
 use imageproc::contours;
 use imageproc::contours::{BorderType, Contour};
 use rayon::prelude::*;
 use texture_packer::{TexturePacker, TexturePackerConfig};
-use texture_packer::exporter::ImageExporter;
 use texture_packer::texture::Texture;
 include!("./src/assets/geometry.rs");
 
@@ -32,48 +34,50 @@ fn main() {
 
     embed_resource::compile("icon.rc", embed_resource::NONE);
 
+    println!("1");
     build_assets().unwrap();
 }
 
-struct Asset {
-    name: String,
-    path: PathBuf
-}
-
-impl Asset {
-    fn new(entry: DirEntry) -> Self {
-        Self { path: entry.path(), name: asset_name(&entry) }
-    }
-
-    fn include_name(&self) -> String {
-        self.name.to_ascii_uppercase()
-    }
-
-    fn include_bytes(&self) -> String {
-        format!("include_bytes!(\"{}\")", self.path.file_name().unwrap().to_str().unwrap())
-    }
-
-    fn assign_include_bytes(&self) -> String {
-        format!("const {}: &[u8] = {};", self.include_name(), self.include_bytes())
-    }
-
-    fn match_clause(&self) -> String {
-        format!("        \"{}\" => {},", self.name, self.include_name())
-    }
-}
+// struct Asset {
+//     name: String,
+//     path: PathBuf
+// }
+//
+// impl Asset {
+//     fn new(entry: DirEntry) -> Self {
+//         Self { path: entry.path(), name: asset_name(&entry) }
+//     }
+//
+//     fn include_name(&self) -> String {
+//         self.name.to_ascii_uppercase()
+//     }
+//
+//     fn include_bytes(&self) -> String {
+//         format!("include_bytes!(\"{}\")", self.path.file_name().unwrap().to_str().unwrap())
+//     }
+//
+//     fn assign_include_bytes(&self) -> String {
+//         format!("const {}: &[u8] = {};", self.include_name(), self.include_bytes())
+//     }
+//
+//     fn match_clause(&self) -> String {
+//         format!("        \"{}\" => {},", self.name, self.include_name())
+//     }
+// }
 
 #[derive(Clone)]
 struct SpriteImage {
+    path: PathBuf,
     name: String,
     rgba_img: RgbaImage
 }
 
 impl SpriteImage {
-    fn new(path: &Path) -> Result<Self, ImageError> {
-        let rgba_img =  image::open(path)?.clone().into_rgba8();
+    fn new(path: PathBuf) -> Result<Self, ImageError> {
+        let rgba_img =  image::open(&path)?.clone().into_rgba8();
         let name = path.with_extension("").file_name().unwrap().to_str().unwrap().to_string();
 
-        Ok(Self { name, rgba_img })
+        Ok(Self { name, rgba_img, path })
     }
 
     fn crop(&self, snip: &ContourSpriteSnip) -> SubImage<&RgbaImage> {
@@ -124,13 +128,13 @@ fn build_assets() -> Result<(), String> {
         .filter(|path| path.extension().and_then(|s| s.to_str()) == Some("png"))
         .collect::<Vec<PathBuf>>()
         .into_par_iter()
-        .map(|path| SpriteImage::new(path.as_path()).expect("cannot read image"))
+        .map(|path| SpriteImage::new(path).expect("cannot read image"))
         .flat_map(|image|
-              extract_chars(&image).expect("cannot get characters").into_iter().map(move |char_snip| {
-                let name = format!("{}:{}", char_snip.character, image.name);
-                let (triangles, unit_scale) = triangulate(&char_snip.snip, &image).expect("cannot triangulate");
-                let sprite_image = image.crop(&char_snip.snip).to_image();
-                PartialAsset { name, sprite_image, character: char_snip.character, triangles, unit_scale }
+              extract_chars(&image).expect("cannot get characters").into_iter().map(move |(character, snip)| {
+                let name = format!("{}:{}", character, image.name);
+                let (triangles, unit_scale) = triangulate(&snip, &image).expect("cannot triangulate");
+                let sprite_image = image.crop(&snip).to_image();
+                PartialAsset { name, sprite_image, character, triangles, unit_scale }
             }).collect::<Vec<PartialAsset>>()
         ).collect::<Vec<PartialAsset>>();
 
@@ -162,8 +166,15 @@ fn build_assets() -> Result<(), String> {
     for (snip, asset) in assets.iter() {
         sprite_sheet.copy_from(&asset.sprite_image, snip.x(), snip.y()).map_err(|e| e.to_string())?;
     }
-    let mut file = File::create(SPRITES_PNG).map_err(|s| s.to_string())?;
-    sprite_sheet.write_to(&mut file, ImageFormat::Png).map_err(|s| s.to_string())?;
+
+    let mut sprite_sheet_png = Cursor::new(Vec::new());
+    sprite_sheet.write_to(&mut sprite_sheet_png, ImageFormat::Png).map_err(|s| s.to_string())?;
+
+    let optimised_png = oxipng::optimize_from_memory(&sprite_sheet_png.into_inner(), &oxipng::Options::default())
+        .map_err(|e| e.to_string())?;
+    let mut optimised_png_file = File::create(SPRITES_PNG).map_err(|s| s.to_string())?;
+    optimised_png_file.write_all(&optimised_png)
+        .map_err(|e| e.to_string())?;
 
     let meta_file = File::create(SPRITES_JSON).map_err(|s| s.to_string())?;
     let sprite_sheet = SpriteAssetSheet::new(
@@ -193,11 +204,6 @@ fn build_assets() -> Result<(), String> {
         MUSIC_MOD,
         load_sound_assets(MUSIC_DIR)?
     )
-}
-
-struct CharSpriteSnip {
-    character: char,
-    snip: ContourSpriteSnip
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -234,7 +240,7 @@ impl ContourSpriteSnip {
     }
 }
 
-fn extract_chars(image: &SpriteImage) -> Result<Vec<CharSpriteSnip>, String> {
+fn extract_chars(image: &SpriteImage) -> Result<HashMap<char, ContourSpriteSnip>, String> {
     // most of the "Outer" contours will be the paths around the character sprites
     let snips = image.contours().into_iter()
         .map(|c| ContourSpriteSnip::new(c))
@@ -276,16 +282,28 @@ fn extract_chars(image: &SpriteImage) -> Result<Vec<CharSpriteSnip>, String> {
     });
 
     // snips can now be placed into row-col order, which implies alphabet order
-    let mut results = vec![];
+    let mut results = HashMap::new();
     let mut character = 'a';
     for (_, row_snips) in snips_by_row.into_iter().sorted_by(|(g1, _), (g2, _)| g1.cmp(&g2)) {
         for (_, snip) in row_snips.into_iter().sorted_by(|s1, s2| s1.x().cmp(&s2.x())).enumerate() {
-            results.push(CharSpriteSnip { character, snip });
+            results.insert(character, snip);
             character = std::char::from_u32(character as u32 + 1).unwrap();
         }
     }
 
-    assert_eq!(results.len(), 26, "{} should have 26 characters but it has {}", image.name, results.len());
+    if results.len() > 26 {
+        // dump images for debug and panic
+        let dump_path = image.path.parent().unwrap().join(format!("{}-debug", image.name));
+        fs::create_dir_all(&dump_path).map_err(|e| e.to_string())?;
+        let results_len = results.len();
+        for (idx, (ch, snip)) in results.into_iter().enumerate() {
+            let snip_path = dump_path.join(format!("{}.png", idx));
+            let mut snip_file = File::create(snip_path).map_err(|s| s.to_string())?;
+            image.crop(&snip).to_image().write_to(&mut snip_file, ImageFormat::Png).map_err(|s| s.to_string())?;
+        }
+        panic!("{} should have 26 characters but it has {}, snips dumped to {}", image.name, results_len, dump_path.to_str().unwrap());
+    }
+
     Ok(results)
 }
 

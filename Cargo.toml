@@ -3,6 +3,7 @@ name = "keyboard-zoo"
 version = "0.1.0"
 edition = "2021"
 resolver = "2"
+build="build/mod.rs"
 
 [package.metadata.vcpkg]
 git = "https://github.com/microsoft/vcpkg"
@@ -26,6 +27,7 @@ serde_derive = "1.0"
 serde_json = "1.0"
 texture_packer = "0.27"
 rayon = "1.8.1"
+oxipng = { version = "9.0", features = ["parallel", "zopfli", "filetime"], default-features = false }
 
 [dependencies]
 sdl2 = { version = "0.36.0", default-features = false, features = ["static-link","use-vcpkg","image","gfx","mixer","ttf"] }
