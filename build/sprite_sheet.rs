@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
 use std::io::{BufWriter, Cursor, Write};
+use std::ops::RangeInclusive;
 use std::path::{Path, PathBuf};
 use image::{GenericImage, ImageFormat, RgbaImage};
 use imagequant::RGBA;
@@ -14,7 +15,8 @@ use crate::geometry::{SpriteAsset, SpriteAssetSheet, SpriteSnip, SpriteTriangle}
 use crate::sprite::{ContourSpriteSnip, SpriteImage};
 use crate::triangulate::triangulate;
 
-const FONT_SRC: &str = "font_images";
+const LETTERS_SRC: &str = "letters";
+const NUMBERS_SRC: &str = "numbers";
 const META_FILE: &str =  "sprites.json";
 const PNG_FILE: &str =  "sprites.png";
 const OPTIMIZED_PNG_FILE: &str =  "sprites.min.png";
@@ -28,10 +30,12 @@ pub fn build_sprite_sheet<P : AsRef<Path>>(root_path: P) -> Result<(), String> {
         return Ok(());
     }
 
-    let partial_assets = async_load_all_sprites(&root_path);
+    let mut assets = async_load_all_sprites(&root_path, SpriteType::Letters);
+    let mut numbers = async_load_all_sprites(&root_path, SpriteType::Numbers);
+    assets.append(&mut numbers);
 
     // pack the sprites in sync
-    let (packed_sprites, meta) = pack_sprites(partial_assets)?;
+    let (packed_sprites, meta) = pack_sprites(assets)?;
 
     // save the sprite sheet
     save_quantized_png(packed_sprites, packed_sprites_path)?;
@@ -62,15 +66,41 @@ fn save_quantized_png(src: RgbaImage, path: PathBuf) -> Result<(), String> {
     encoder.set_trns(palette.iter().map(|p| p.a).collect::<Vec<u8>>());
     encoder.set_palette(palette.into_iter().flat_map(|p| [p.r, p.g, p.b]).collect::<Vec<u8>>());
     encoder.set_color(png::ColorType::Indexed);
-    encoder.set_source_gamma(ScaledFloat::new(res.output_gamma() as f32));
+    //encoder.set_source_gamma(ScaledFloat::new(res.output_gamma() as f32));
     encoder.set_depth(png::BitDepth::Eight);
 
     encoder.write_header().map_err(|e| e.to_string())?
         .write_image_data(&pixels).map_err(|e| e.to_string())
 }
 
-fn async_load_all_sprites<P : AsRef<Path>>(root_path: P) -> Vec<PartialAsset> {
-    fs::read_dir(root_path.as_ref().join(FONT_SRC))
+#[derive(Copy, Clone)]
+enum SpriteType { Letters, Numbers }
+
+impl SpriteType {
+    fn src_path(&self) -> &str {
+        match self {
+            SpriteType::Letters => LETTERS_SRC,
+            SpriteType::Numbers => NUMBERS_SRC
+        }
+    }
+
+    fn expected_size(&self) -> usize {
+        match self {
+            SpriteType::Letters => 26,
+            SpriteType::Numbers => 10
+        }
+    }
+
+    fn chars(&self) -> Vec<char> {
+        match self {
+            SpriteType::Letters => ('a' ..= 'z').collect(),
+            SpriteType::Numbers => ('1' ..= '9').chain(['0']).collect()
+        }
+    }
+}
+
+fn async_load_all_sprites<P : AsRef<Path>>(root_path: P, sprite_type: SpriteType) -> Vec<PartialAsset> {
+    fs::read_dir(root_path.as_ref().join(sprite_type.src_path()))
         .expect("cannot read font source path")
         .into_iter()
         .map(|dir_entry| dir_entry.unwrap().path())
@@ -79,7 +109,7 @@ fn async_load_all_sprites<P : AsRef<Path>>(root_path: P) -> Vec<PartialAsset> {
         .into_par_iter()
         .map(|path| SpriteImage::new(path).expect("cannot read image"))
         .flat_map(|image|
-            extract_chars(&image).expect("cannot get characters").into_iter().map(move |(character, snip)| {
+            extract_chars(&image, sprite_type).expect("cannot get characters").into_iter().map(move |(character, snip)| {
                 let name = format!("{}:{}", character, image.name());
                 let (triangles, unit_scale) = triangulate(&snip, &image).expect("cannot triangulate");
                 let sprite_image = image.crop(&snip).to_image();
@@ -132,7 +162,7 @@ fn pack_sprites(partial_assets: Vec<PartialAsset>) -> Result<(RgbaImage, SpriteA
     Ok((packed_sprites, meta))
 }
 
-fn extract_chars(image: &SpriteImage) -> Result<HashMap<char, ContourSpriteSnip>, String> {
+fn extract_chars(image: &SpriteImage, sprite_type: SpriteType) -> Result<HashMap<char, ContourSpriteSnip>, String> {
     // most of the "Outer" contours will be the paths around the character sprites
     let snips = image.contours().into_iter()
         .map(|c| ContourSpriteSnip::new(c))
@@ -174,29 +204,30 @@ fn extract_chars(image: &SpriteImage) -> Result<HashMap<char, ContourSpriteSnip>
     });
 
     // snips can now be placed into row-col order, which implies alphabet order
-    let mut results = HashMap::new();
-    let mut character = 'a';
+    let mut results = vec![];
+    let mut char_iter = sprite_type.chars().into_iter();
     for (_, row_snips) in snips_by_row.into_iter().sorted_by(|(g1, _), (g2, _)| g1.cmp(&g2)) {
         for (_, snip) in row_snips.into_iter().sorted_by(|s1, s2| s1.x().cmp(&s2.x())).enumerate() {
-            results.insert(character, snip);
-            character = std::char::from_u32(character as u32 + 1).unwrap();
+            let character = char_iter.next().unwrap_or('_');
+            results.push((character, snip));
         }
     }
 
-    if results.len() > 26 {
+    if results.len() > sprite_type.expected_size() {
         // dump images for debug and panic
         let dump_path = image.path().parent().unwrap().join(format!("{}-debug", image.name()));
         fs::create_dir_all(&dump_path).map_err(|e| e.to_string())?;
         let results_len = results.len();
-        for (idx, (ch, snip)) in results.into_iter().enumerate() {
+        for (idx, (_, snip)) in results.into_iter().enumerate() {
             let snip_path = dump_path.join(format!("{}.png", idx));
             let mut snip_file = File::create(snip_path).map_err(|s| s.to_string())?;
             image.crop(&snip).to_image().write_to(&mut snip_file, ImageFormat::Png).map_err(|s| s.to_string())?;
         }
-        panic!("{} should have 26 characters but it has {}, snips dumped to {}", image.name(), results_len, dump_path.to_str().unwrap());
+        panic!("{} should have {} characters but it has {}, snips dumped to {}",
+               image.name(), sprite_type.expected_size(), results_len, dump_path.to_str().unwrap());
     }
 
-    Ok(results)
+    Ok(results.into_iter().collect())
 }
 
 struct PartialAsset {
