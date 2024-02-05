@@ -1,5 +1,5 @@
 use crate::sound::build_sound_modules;
-use crate::sprite_sheet::{build_sprite_sheet};
+use crate::sprite_sheet::build_sprite_sheets;
 
 mod opaque;
 mod geometry;
@@ -15,9 +15,9 @@ fn main() {
 
     embed_resource::compile("icon.rc", embed_resource::NONE);
 
-    println!("0");
+    println!("1");
     build_sound_modules(ROOT_DIR).unwrap();
-    build_sprite_sheet(ROOT_DIR).unwrap()
+    build_sprite_sheets(ROOT_DIR).unwrap()
 }
 
 

@@ -1,9 +1,8 @@
 # Keyboard Zoo
 
 TODO
-* numbers
-* more sprites
-* redo music & destroy sound
+* bag random
+* redo music, create sound (my/esme's voice?) & destroy sound
 * collision sound?
 * scale all sprites to similar size
 * shuffle between 3-4 bg particle displays

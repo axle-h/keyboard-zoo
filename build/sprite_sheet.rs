@@ -1,13 +1,11 @@
 use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
-use std::io::{BufWriter, Cursor, Write};
-use std::ops::RangeInclusive;
+use std::io::BufWriter;
 use std::path::{Path, PathBuf};
-use image::{GenericImage, ImageFormat, RgbaImage};
+use image::{GenericImage, ImageFormat, ImageOutputFormat, RgbaImage};
 use imagequant::RGBA;
 use itertools::Itertools;
-use png::ScaledFloat;
 use rayon::prelude::*;
 use texture_packer::{TexturePacker, TexturePackerConfig};
 use texture_packer::texture::Texture;
@@ -22,17 +20,23 @@ const PNG_FILE: &str =  "sprites.png";
 const OPTIMIZED_PNG_FILE: &str =  "sprites.min.png";
 
 
-pub fn build_sprite_sheet<P : AsRef<Path>>(root_path: P) -> Result<(), String> {
-    let meta_path = root_path.as_ref().join(META_FILE);
-    let packed_sprites_path = root_path.as_ref().join(PNG_FILE);
+pub fn build_sprite_sheets<P : AsRef<Path>>(root_path: P) -> Result<(), String> {
+    for sprite_type in [SpriteType::Numbers, SpriteType::Letters] {
+        build_sprite_sheet(&root_path, sprite_type)?;
+    }
+    Ok(())
+}
+
+fn build_sprite_sheet<P : AsRef<Path>>(root_path: P, sprite_type: SpriteType) -> Result<(), String> {
+    let asset_path = root_path.as_ref().join(sprite_type.src_path());
+    let meta_path = asset_path.join(META_FILE);
+    let packed_sprites_path = asset_path.join(PNG_FILE);
 
     if meta_path.exists() && packed_sprites_path.exists() {
         return Ok(());
     }
 
-    let mut assets = async_load_all_sprites(&root_path, SpriteType::Letters);
-    let mut numbers = async_load_all_sprites(&root_path, SpriteType::Numbers);
-    assets.append(&mut numbers);
+    let assets = async_load_all_sprites(asset_path, sprite_type);
 
     // pack the sprites in sync
     let (packed_sprites, meta) = pack_sprites(assets)?;
@@ -47,10 +51,15 @@ pub fn build_sprite_sheet<P : AsRef<Path>>(root_path: P) -> Result<(), String> {
     Ok(())
 }
 
+fn save_png(src: RgbaImage, path: PathBuf) -> Result<(), String> {
+    let mut file = File::create(path).map_err(|e| e.to_string())?;
+    src.write_to(&mut file, ImageOutputFormat::Png).map_err(|e| e.to_string())
+}
+
 fn save_quantized_png(src: RgbaImage, path: PathBuf) -> Result<(), String> {
     let mut liq = imagequant::new();
-    liq.set_speed(5).map_err(|e| e.to_string())?;
-    liq.set_quality(70, 99).map_err(|e| e.to_string())?;
+    liq.set_speed(4).map_err(|e| e.to_string())?;
+    liq.set_quality(0, 100).map_err(|e| e.to_string())?;
 
     let mut img = liq.new_image(
         src.pixels().map(|p| RGBA::from(p.0)).collect::<Vec<RGBA>>(),
@@ -84,13 +93,6 @@ impl SpriteType {
         }
     }
 
-    fn expected_size(&self) -> usize {
-        match self {
-            SpriteType::Letters => 26,
-            SpriteType::Numbers => 10
-        }
-    }
-
     fn chars(&self) -> Vec<char> {
         match self {
             SpriteType::Letters => ('a' ..= 'z').collect(),
@@ -99,8 +101,8 @@ impl SpriteType {
     }
 }
 
-fn async_load_all_sprites<P : AsRef<Path>>(root_path: P, sprite_type: SpriteType) -> Vec<PartialAsset> {
-    fs::read_dir(root_path.as_ref().join(sprite_type.src_path()))
+fn async_load_all_sprites<P : AsRef<Path>>(path: P, sprite_type: SpriteType) -> Vec<PartialAsset> {
+    fs::read_dir(path)
         .expect("cannot read font source path")
         .into_iter()
         .map(|dir_entry| dir_entry.unwrap().path())
@@ -213,7 +215,7 @@ fn extract_chars(image: &SpriteImage, sprite_type: SpriteType) -> Result<HashMap
         }
     }
 
-    if results.len() > sprite_type.expected_size() {
+    if results.len() > sprite_type.chars().len() {
         // dump images for debug and panic
         let dump_path = image.path().parent().unwrap().join(format!("{}-debug", image.name()));
         fs::create_dir_all(&dump_path).map_err(|e| e.to_string())?;
@@ -224,7 +226,7 @@ fn extract_chars(image: &SpriteImage, sprite_type: SpriteType) -> Result<HashMap
             image.crop(&snip).to_image().write_to(&mut snip_file, ImageFormat::Png).map_err(|s| s.to_string())?;
         }
         panic!("{} should have {} characters but it has {}, snips dumped to {}",
-               image.name(), sprite_type.expected_size(), results_len, dump_path.to_str().unwrap());
+               image.name(), sprite_type.chars().len(), results_len, dump_path.to_str().unwrap());
     }
 
     Ok(results.into_iter().collect())
