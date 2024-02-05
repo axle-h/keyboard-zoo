@@ -5,6 +5,10 @@ edition = "2021"
 resolver = "2"
 build="build/mod.rs"
 
+[features]
+default = ["compress_sprites"]
+compress_sprites = ["png", "imagequant", "oxipng"]
+
 [package.metadata.vcpkg]
 git = "https://github.com/microsoft/vcpkg"
 tag = "2023.11.20"
@@ -26,8 +30,10 @@ serde_derive = "1.0"
 serde_json = "1.0"
 texture_packer = "0.27"
 rayon = "1.8.1"
-imagequant = "4.3.0"
-png = "0.17.10"
+zstd = "0.13.0"
+imagequant = { version = "4.3.0", optional = true }
+png = { version = "0.17.11", optional = true }
+oxipng = { version = "9.0.0", optional = true }
 
 [dependencies]
 sdl2 = { version = "0.36.0", default-features = false, features = ["static-link","use-vcpkg","image","gfx","mixer","ttf"] }
@@ -42,6 +48,7 @@ box2d-rs = "0.0.4"
 rand = "0.8.5"
 strum = { version = "0.25", features = ["derive"] }
 strum_macros = "0.25"
+zstd = "0.13.0"
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3.9", features = ["wincon"] }

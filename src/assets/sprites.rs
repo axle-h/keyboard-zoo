@@ -1,19 +1,27 @@
 use std::collections::HashMap;
+use std::io::Cursor;
 use rand::prelude::ThreadRng;
 use rand::seq::SliceRandom;
+use rand::thread_rng;
 use sdl2::gfx::primitives::DrawRenderer;
 use sdl2::image::LoadTexture;
 use sdl2::rect::Rect;
 use sdl2::render::{Texture, TextureCreator, WindowCanvas};
 use sdl2::video::WindowContext;
 use crate::assets::geometry::{SpriteAsset, SpriteAssetSheet};
-use crate::game::physics::{AssetBody, Body};
+use crate::game::physics::AssetBody;
+use crate::assets::letters;
+use crate::assets::numbers;
 
-const SPRITES_JSON: &[u8] = include_bytes!("sprites.json");
-const SPRITES_PNG: &[u8] = include_bytes!("sprites.png");
+struct BagRandom<T> {
+    rng: ThreadRng,
+    sample: Vec<T>
+}
 
-pub fn deserialize_sprites() -> Result<SpriteAssetSheet, String> {
-    serde_json::from_slice(&SPRITES_JSON).map_err(|e| e.to_string())
+impl<T> BagRandom<T> {
+    pub fn new(sample: Vec<T>) -> Self {
+        Self { rng: thread_rng(), sample }
+    }
 }
 
 pub struct Sprites<'a> {
@@ -21,33 +29,45 @@ pub struct Sprites<'a> {
     sprites_by_name: HashMap<String, SpriteAsset>,
     sprites_by_char: HashMap<char, Vec<SpriteAsset>>,
     rng: ThreadRng,
-    texture: Texture<'a>
+    letters: Texture<'a>,
+    numbers: Texture<'a>
 }
 
 impl<'a> Sprites<'a> {
+    fn load_sprites(src:  &'static [u8]) -> Result<Vec<SpriteAsset>, String> {
+        let decompressed = zstd::stream::Decoder::new(Cursor::new(src))
+            .map_err(|e| e.to_string())?;
+
+        let sprite_sheet: SpriteAssetSheet = serde_json::from_reader(decompressed)
+            .map_err(|e| e.to_string())?;
+        Ok(sprite_sheet.into_sprites())
+    }
+
     pub fn new(texture_creator: &'a TextureCreator<WindowContext>) -> Result<Self, String> {
-        let sprite_sheet: SpriteAssetSheet = serde_json::from_slice(&SPRITES_JSON).map_err(|e| e.to_string())?;
+        let sprites = Self::load_sprites(letters::SPRITES_JSON_ZST)?
+            .into_iter()
+            .chain(Self::load_sprites(numbers::SPRITES_JSON_ZST)?.into_iter())
+            .collect::<Vec<SpriteAsset>>();
+
         let mut sprites_by_char: HashMap<char, Vec<SpriteAsset>> = HashMap::new();
         let mut sprites_by_name: HashMap<String, SpriteAsset> = HashMap::new();
-        let mut sprites = vec![];
-        for sprite in sprite_sheet.sprites().into_iter() {
-            sprites.push(sprite.clone());
-
+        for sprite in sprites.iter() {
             if sprites_by_name.insert(sprite.name().to_string(), sprite.clone()).is_some() {
                 return Err(format!("duplicate sprite {}", sprite.name()))
             }
 
-            let key = sprite.name().chars().next().expect("sprite name is empty").to_ascii_uppercase();
-            if let Some(entries) = sprites_by_char.get_mut(&key) {
+            let character = sprite.character().to_ascii_uppercase();
+            if let Some(entries) = sprites_by_char.get_mut(&character) {
                 entries.push(sprite.clone());
             } else {
-                sprites_by_char.insert(key, vec![sprite.clone()]);
+                sprites_by_char.insert(character, vec![sprite.clone()]);
             }
         }
 
-        let texture = texture_creator.load_texture_bytes(SPRITES_PNG)?;
+        let letters = texture_creator.load_texture_bytes(letters::SPRITES_PNG)?;
+        let numbers = texture_creator.load_texture_bytes(numbers::SPRITES_PNG)?;
 
-        Ok(Self { sprites, sprites_by_name, sprites_by_char, rng: Default::default(), texture })
+        Ok(Self { sprites, sprites_by_name, sprites_by_char, rng: Default::default(), letters, numbers })
     }
 
     pub fn names(&self) -> Vec<String> {
@@ -68,8 +88,8 @@ impl<'a> Sprites<'a> {
         if let Some(sprite) = self.sprites_by_name.get(body.asset_name()) {
             let snip = sprite.snip();
             canvas.copy_ex(
-                &self.texture,
-                Rect::new(snip.x() as i32, snip.y() as i32, snip.width() as u32, snip.height() as u32),
+                if sprite.character().is_numeric() { &self.numbers } else { &self.letters },
+                Rect::new(snip.x() as i32, snip.y() as i32, snip.width(), snip.height()),
                 body.aabb(),
                 body.angle(),
                 None,

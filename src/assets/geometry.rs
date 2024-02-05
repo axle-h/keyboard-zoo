@@ -247,8 +247,8 @@ impl SpriteAssetSheet {
     }
 
 
-    pub fn sprites(&self) -> &Vec<SpriteAsset> {
-        &self.sprites
+    pub fn into_sprites(self) -> Vec<SpriteAsset> {
+        self.sprites
     }
 }
 

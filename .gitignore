@@ -4,5 +4,6 @@
 src/assets/sound/destroy/mod.rs
 src/assets/sound/music/mod.rs
 src/assets/sound/explosion/mod.rs
-src/assets/sprites.json
-src/assets/sprites.png
+src/assets/**/sprites.json.zst
+src/assets/**/sprites.png
+src/assets/**/sprites.min.png

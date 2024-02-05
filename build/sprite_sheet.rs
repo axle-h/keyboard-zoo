@@ -1,10 +1,9 @@
 use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
-use std::io::BufWriter;
+use std::io::{BufWriter, Cursor, Write};
 use std::path::{Path, PathBuf};
-use image::{GenericImage, ImageFormat, ImageOutputFormat, RgbaImage};
-use imagequant::RGBA;
+use image::{GenericImage, ImageFormat, RgbaImage};
 use itertools::Itertools;
 use rayon::prelude::*;
 use texture_packer::{TexturePacker, TexturePackerConfig};
@@ -15,20 +14,20 @@ use crate::triangulate::triangulate;
 
 const LETTERS_SRC: &str = "letters";
 const NUMBERS_SRC: &str = "numbers";
-const META_FILE: &str =  "sprites.json";
+const META_FILE: &str =  "sprites.json.zst";
 const PNG_FILE: &str =  "sprites.png";
-const OPTIMIZED_PNG_FILE: &str =  "sprites.min.png";
-
 
 pub fn build_sprite_sheets<P : AsRef<Path>>(root_path: P) -> Result<(), String> {
-    for sprite_type in [SpriteType::Numbers, SpriteType::Letters] {
-        build_sprite_sheet(&root_path, sprite_type)?;
-    }
+    [SpriteType::Numbers, SpriteType::Letters]
+        .map(|sprite_type| (sprite_type, root_path.as_ref().join(sprite_type.src_path())))
+        .into_par_iter()
+        .for_each(|(sprite_type, asset_path)| {
+            build_sprite_sheet(asset_path.as_path(), sprite_type).unwrap()
+        });
     Ok(())
 }
 
-fn build_sprite_sheet<P : AsRef<Path>>(root_path: P, sprite_type: SpriteType) -> Result<(), String> {
-    let asset_path = root_path.as_ref().join(sprite_type.src_path());
+fn build_sprite_sheet(asset_path: &Path, sprite_type: SpriteType) -> Result<(), String> {
     let meta_path = asset_path.join(META_FILE);
     let packed_sprites_path = asset_path.join(PNG_FILE);
 
@@ -36,33 +35,42 @@ fn build_sprite_sheet<P : AsRef<Path>>(root_path: P, sprite_type: SpriteType) ->
         return Ok(());
     }
 
-    let assets = async_load_all_sprites(asset_path, sprite_type);
-
     // pack the sprites in sync
-    let (packed_sprites, meta) = pack_sprites(assets)?;
+    let (packed_sprites, meta) = pack_sprites(
+        async_load_all_sprites(asset_path, sprite_type)
+    )?;
 
     // save the sprite sheet
-    save_quantized_png(packed_sprites, packed_sprites_path)?;
+    save_png(packed_sprites, packed_sprites_path)?;
 
-    // save meta
-    let meta_file = File::create(meta_path).map_err(|s| s.to_string())?;
-    serde_json::to_writer(meta_file, &meta).map_err(|e| e.to_string())?;
+    // save compressed meta
+    let mut meta_writer = BufWriter::new(
+        File::create(meta_path).map_err(|s| s.to_string())?
+    );
+    let mut zstd_writer = zstd::stream::write::Encoder::new(&mut meta_writer, 0)
+        .map_err(|e| e.to_string())?;
+    serde_json::to_writer(&mut zstd_writer, &meta).map_err(|e| e.to_string())?;
+    meta_writer.flush().map_err(|e| e.to_string())?;
 
     Ok(())
 }
 
-fn save_png(src: RgbaImage, path: PathBuf) -> Result<(), String> {
-    let mut file = File::create(path).map_err(|e| e.to_string())?;
-    src.write_to(&mut file, ImageOutputFormat::Png).map_err(|e| e.to_string())
+#[cfg(not(feature = "compress_sprites"))]
+fn into_png(src: RgbaImage, path: PathBuf) -> Result<(), String> {
+    let mut file = BufWriter::new(File::create(path).map_err(|e| e.to_string())?);
+    src.write_to(&mut file, image::ImageOutputFormat::Png).map_err(|e| e.to_string())?;
+    file.flush().map_err(|e| e.to_string())
 }
 
-fn save_quantized_png(src: RgbaImage, path: PathBuf) -> Result<(), String> {
+#[cfg(feature = "compress_sprites")]
+fn save_png(src: RgbaImage, path: PathBuf) -> Result<(), String> {
+    // quantize the image into an indexed png, it compresses far better like this
     let mut liq = imagequant::new();
     liq.set_speed(4).map_err(|e| e.to_string())?;
-    liq.set_quality(0, 100).map_err(|e| e.to_string())?;
+    liq.set_quality(70, 100).map_err(|e| e.to_string())?;
 
     let mut img = liq.new_image(
-        src.pixels().map(|p| RGBA::from(p.0)).collect::<Vec<RGBA>>(),
+        src.pixels().map(|p| imagequant::RGBA::from(p.0)).collect::<Vec<imagequant::RGBA>>(),
         src.width() as usize,
         src.height() as usize,
         0.0
@@ -70,16 +78,25 @@ fn save_quantized_png(src: RgbaImage, path: PathBuf) -> Result<(), String> {
     let mut res = liq.quantize(&mut img).map_err(|e| e.to_string())?;
     let (palette, pixels) = res.remapped(&mut img).unwrap();
 
-    let file = File::create(path).map_err(|e| e.to_string())?;
-    let mut encoder = png::Encoder::new(BufWriter::new(file), src.width(), src.height());
+    let mut png_bytes = Cursor::new(Vec::new());
+    let mut encoder = png::Encoder::new(&mut png_bytes, src.width(), src.height());
     encoder.set_trns(palette.iter().map(|p| p.a).collect::<Vec<u8>>());
     encoder.set_palette(palette.into_iter().flat_map(|p| [p.r, p.g, p.b]).collect::<Vec<u8>>());
     encoder.set_color(png::ColorType::Indexed);
-    //encoder.set_source_gamma(ScaledFloat::new(res.output_gamma() as f32));
     encoder.set_depth(png::BitDepth::Eight);
-
     encoder.write_header().map_err(|e| e.to_string())?
-        .write_image_data(&pixels).map_err(|e| e.to_string())
+        .write_image_data(&pixels).map_err(|e| e.to_string())?;
+
+    // this is the bit that takes ages...
+    // compress the quantized png and save it to disc
+    let compressed_png_bytes = oxipng::optimize_from_memory(
+        &png_bytes.into_inner(),
+        &oxipng::Options::from_preset(6)
+    ).map_err(|e| e.to_string())?;
+
+    let mut file = BufWriter::new(File::create(path).map_err(|e| e.to_string())?);
+    file.write_all(&compressed_png_bytes).map_err(|e| e.to_string())?;
+    file.flush().map_err(|e| e.to_string())
 }
 
 #[derive(Copy, Clone)]
@@ -106,7 +123,9 @@ fn async_load_all_sprites<P : AsRef<Path>>(path: P, sprite_type: SpriteType) -> 
         .expect("cannot read font source path")
         .into_iter()
         .map(|dir_entry| dir_entry.unwrap().path())
-        .filter(|path| path.extension().and_then(|s| s.to_str()) == Some("png"))
+        .filter(|path| path.is_file()
+            && path.extension().and_then(|s| s.to_str()) == Some("png")
+            && path.file_name().and_then(|s| s.to_str()) != Some(PNG_FILE))
         .collect::<Vec<PathBuf>>()
         .into_par_iter()
         .map(|path| SpriteImage::new(path).expect("cannot read image"))
