@@ -16,6 +16,7 @@ const LETTERS_SRC: &str = "letters";
 const NUMBERS_SRC: &str = "numbers";
 const META_FILE: &str =  "sprites.json.zst";
 const PNG_FILE: &str =  "sprites.png";
+const MAX_DIMENSION: u32 = 500;
 
 pub fn build_sprite_sheets<P : AsRef<Path>>(root_path: P) -> Result<(), String> {
     [SpriteType::Numbers, SpriteType::Letters]
@@ -44,19 +45,17 @@ fn build_sprite_sheet(asset_path: &Path, sprite_type: SpriteType) -> Result<(), 
     save_png(packed_sprites, packed_sprites_path)?;
 
     // save compressed meta
-    let mut meta_writer = BufWriter::new(
-        File::create(meta_path).map_err(|s| s.to_string())?
-    );
+    let mut meta_writer = File::create(meta_path).map_err(|s| s.to_string())?;
     let mut zstd_writer = zstd::stream::write::Encoder::new(&mut meta_writer, 0)
         .map_err(|e| e.to_string())?;
     serde_json::to_writer(&mut zstd_writer, &meta).map_err(|e| e.to_string())?;
-    meta_writer.flush().map_err(|e| e.to_string())?;
+    zstd_writer.finish().map_err(|e| e.to_string())?;
 
     Ok(())
 }
 
 #[cfg(not(feature = "compress_sprites"))]
-fn into_png(src: RgbaImage, path: PathBuf) -> Result<(), String> {
+fn save_png(src: RgbaImage, path: PathBuf) -> Result<(), String> {
     let mut file = BufWriter::new(File::create(path).map_err(|e| e.to_string())?);
     src.write_to(&mut file, image::ImageOutputFormat::Png).map_err(|e| e.to_string())?;
     file.flush().map_err(|e| e.to_string())
@@ -131,10 +130,13 @@ fn async_load_all_sprites<P : AsRef<Path>>(path: P, sprite_type: SpriteType) -> 
         .map(|path| SpriteImage::new(path).expect("cannot read image"))
         .flat_map(|image|
             extract_chars(&image, sprite_type).expect("cannot get characters").into_iter().map(move |(character, snip)| {
-                let name = format!("{}:{}", character, image.name());
-                let (triangles, unit_scale) = triangulate(&snip, &image).expect("cannot triangulate");
-                let sprite_image = image.crop(&snip).to_image();
-                PartialAsset { name, sprite_image, character, triangles, unit_scale }
+                let name = format!("{}/{}/{}", sprite_type.src_path(), image.name(), character);
+                let triangles = triangulate(snip.contour(), &image).expect("cannot triangulate");
+
+                let scale = MAX_DIMENSION as f64 / snip.width().max(snip.height()) as f64;
+                let scaled = image.crop_and_scale(&snip, scale);
+
+                PartialAsset { name, sprite_image: scaled, character, triangles }
             }).collect::<Vec<PartialAsset>>()
         ).collect()
 }
@@ -174,8 +176,7 @@ fn pack_sprites(partial_assets: Vec<PartialAsset>) -> Result<(RgbaImage, SpriteA
                 asset.name,
                 asset.character,
                 snip,
-                asset.triangles,
-                asset.unit_scale
+                asset.triangles
             )
         ).collect()
     );
@@ -255,8 +256,7 @@ struct PartialAsset {
     name: String,
     sprite_image: RgbaImage,
     character: char,
-    triangles: Vec<SpriteTriangle>,
-    unit_scale: f64
+    triangles: Vec<SpriteTriangle>
 }
 
 

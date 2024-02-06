@@ -69,9 +69,10 @@ impl PolygonArea for Triangle {
 }
 impl Into<SpriteTriangle> for Triangle {
     fn into(self) -> SpriteTriangle {
-        let mut triangle = SpriteTriangle::new(self.points.map(|p| SpritePoint::new(p.x() as f64, p.y() as f64)));
-        triangle.set_color(self.color.r, self.color.g, self.color.b);
-        triangle
+        SpriteTriangle::new(
+            self.points.map(|p| SpritePoint::new(p.x() as f64, p.y() as f64)),
+            [self.color.r, self.color.g, self.color.b]
+        )
     }
 }
 

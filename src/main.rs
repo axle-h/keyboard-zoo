@@ -13,6 +13,7 @@ mod particles;
 mod animate;
 mod texture;
 mod characters;
+mod random;
 
 fn main() -> Result<(), String> {
     main::main()

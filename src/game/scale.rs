@@ -22,7 +22,7 @@ impl PhysicsScale {
     }
 
     pub fn point_to_b2d_vec2(&self, point: SpritePoint) -> B2vec2 {
-        B2vec2::new(point.x() as f32 / self.config.pixels_per_meter, point.y() as f32 / self.config.pixels_per_meter)
+        B2vec2::new(point.x as f32 / self.config.pixels_per_meter, point.y as f32 / self.config.pixels_per_meter)
     }
 
     pub fn b2d_vec2_to_sdl(&self, value: B2vec2) -> Point {
@@ -39,8 +39,8 @@ impl PhysicsScale {
     pub fn triangle_to_polygon(&self, triangle: &SpriteTriangle) -> Triangle {
         let points = triangle.points()
             .map(|p| Point::new(
-                (p.x() as f32 * self.config.polygon_scale).round() as i32,
-                (p.y() as f32 * self.config.polygon_scale).round() as i32)
+                (p.x as f32 * self.config.polygon_scale).round() as i32,
+                (p.y as f32 * self.config.polygon_scale).round() as i32)
             );
         let [r, g, b] = triangle.color();
         Triangle::new(points, Color::RGB(r, g, b))

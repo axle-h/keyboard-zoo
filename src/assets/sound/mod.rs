@@ -2,7 +2,6 @@ use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;
 use rand::{Rng, thread_rng};
-use rand::rngs::ThreadRng;
 use rand::seq::SliceRandom;
 use sdl2::get_error;
 use sdl2::mixer::{Chunk, Music};
@@ -11,56 +10,66 @@ use sdl2::sys::mixer;
 use crate::assets::sound::letter::letter_sound;
 use crate::assets::sound::playable::Playable;
 use crate::config::AudioConfig;
+use crate::random::BagRandom;
 
 mod letter;
 pub mod playable;
-mod destroy;
 mod music;
-mod explosion;
+mod effects;
 
 static mut MUSIC_QUEUE: Option<Rc<RefCell<VecDeque<Music<'static>>>>> = None;
 
 pub struct Sound {
-    rng: ThreadRng,
-    letter_sounds: HashMap<char, Chunk>,
-    destroy_sounds: Vec<Chunk>,
-    explosion_sounds: Vec<Chunk>
+    letter: HashMap<char, Chunk>,
+    destroy: BagRandom<Chunk>,
+    explosion: BagRandom<Chunk>,
+    collision: BagRandom<Chunk>
 }
 
 impl Sound {
+    fn load_sounds(config: &AudioConfig, assets: &[&'static [u8]]) -> BagRandom<Chunk> {
+        BagRandom::new(
+            assets.into_iter()
+                .map(|b| config.load_chunk(b).unwrap())
+                .collect()
+        )
+    }
+
     pub fn new(config: AudioConfig) -> Result<Self, String> {
-        let letter_sounds = ('a' ..= 'z')
+        let letter = ('a' ..= 'z')
             .map(|ch| (ch, config.load_chunk(letter_sound(ch)).unwrap())).collect();
 
-        let destroy_sounds = destroy::ASSETS.into_iter()
-            .map(|b| config.load_chunk(b).unwrap())
-            .collect();
+        let destroy = Self::load_sounds(&config, &effects::destroy::ASSETS);
+        let explosion = Self::load_sounds(&config, &effects::explosion::ASSETS);
+        let collision = Self::load_sounds(&config, &effects::collision::ASSETS);
 
-        let explosion_sounds = explosion::ASSETS.into_iter()
-            .map(|b| config.load_chunk(b).unwrap())
-            .collect();
-
-        Ok(Self { rng: thread_rng(), letter_sounds, destroy_sounds, explosion_sounds })
+        Ok(Self { letter, destroy, explosion, collision })
     }
 
     pub fn play_letter(&self, ch: char) {
-        if let Some(chunk) = self.letter_sounds.get(&ch) {
+        if let Some(chunk) = self.letter.get(&ch) {
             chunk.try_play();
         }
     }
 
     pub fn play_destroy(&mut self) {
-        self.destroy_sounds.choose(&mut self.rng).unwrap().try_play();
+        self.destroy.next().unwrap().try_play();
     }
 
     pub fn play_explosion(&mut self) {
-        self.explosion_sounds.choose(&mut self.rng).unwrap().try_play();
+        self.explosion.next().unwrap().try_play();
+    }
+
+    pub fn play_collision(&mut self) {
+        self.explosion.next().unwrap().try_play();
     }
 
     pub fn play_music(&mut self) -> Result<(), String> {
         Music::unhook_finished();
+
+        let mut rng = thread_rng();
         let mut queue = music::ASSETS
-            .choose_multiple(&mut self.rng, music::ASSETS.len())
+            .choose_multiple(&mut rng, music::ASSETS.len())
             .into_iter()
             .map(|&a| Music::from_static_bytes(a).unwrap())
             .collect::<VecDeque<Music<'static>>>();

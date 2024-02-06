@@ -21,7 +21,7 @@ use sdl2::pixels::Color;
 use sdl2::rect::{Point, Rect};
 use sdl2::render::WindowCanvas;
 use crate::characters::{Character, CharacterFactory, CharacterType};
-use crate::assets::geometry::{SpriteRect, SpriteAsset};
+use crate::assets::geometry::SpriteAsset;
 use crate::characters::lifetime::CharacterState;
 use crate::config::PhysicsConfig;
 use crate::game::action::{Direction, PhysicsAction};
@@ -470,7 +470,7 @@ impl Physics {
     pub fn spawn_asset(&mut self, sprite: SpriteAsset) -> Vec<GameEvent> {
         let polygon_scale = self.config.polygon_scale;
 
-        let (sprite_width, sprite_height) = sprite.triangle_scaled_dimensions();
+        let (sprite_width, sprite_height) = sprite.unit_scale();
         let width = sprite_width as f32 * polygon_scale;
         let height = sprite_height as f32 * polygon_scale;
 
@@ -506,8 +506,8 @@ impl Physics {
         for triangle in sprite.triangles().into_iter() {
             let points = triangle.points()
                 .map(|p| B2vec2::new(
-                    polygon_scale * (p.x() - offset_x) as f32,
-                    polygon_scale * (p.y() - offset_y) as f32)
+                    polygon_scale * (p.x - offset_x) as f32,
+                    polygon_scale * (p.y - offset_y) as f32)
                 );
             shape.borrow_mut().set(&points);
             let [r, g, b] = triangle.color();

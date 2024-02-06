@@ -111,6 +111,8 @@ impl GameInputContext {
                 keycode: Some(keycode),
                 repeat: false,
                 ..
+
+
             } => self.input_map.get(&keycode).map(|&k| KeyState::Down(k)),
             Event::KeyUp {
                 keycode: Some(keycode),
@@ -166,6 +168,7 @@ impl GameInputContext {
         };
 
         map.insert(config.spawn_character, GameInputKey::SpawnRandomCharacter);
+        map.insert(config.spawn_asset, GameInputKey::SpawnRandomAsset);
         map.insert(config.up, GameInputKey::Up);
         map.insert(config.down, GameInputKey::Down);
         map.insert(config.left, GameInputKey::Left);

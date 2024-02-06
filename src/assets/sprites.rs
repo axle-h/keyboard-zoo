@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 use std::io::Cursor;
-use rand::prelude::ThreadRng;
-use rand::seq::SliceRandom;
-use rand::thread_rng;
+use itertools::Itertools;
+use std::default::Default;
 use sdl2::gfx::primitives::DrawRenderer;
 use sdl2::image::LoadTexture;
 use sdl2::rect::Rect;
@@ -12,25 +11,14 @@ use crate::assets::geometry::{SpriteAsset, SpriteAssetSheet};
 use crate::game::physics::AssetBody;
 use crate::assets::letters;
 use crate::assets::numbers;
-
-struct BagRandom<T> {
-    rng: ThreadRng,
-    sample: Vec<T>
-}
-
-impl<T> BagRandom<T> {
-    pub fn new(sample: Vec<T>) -> Self {
-        Self { rng: thread_rng(), sample }
-    }
-}
+use crate::random::BagRandom;
 
 pub struct Sprites<'a> {
-    sprites: Vec<SpriteAsset>,
+    char_bag: BagRandom<char>,
     sprites_by_name: HashMap<String, SpriteAsset>,
-    sprites_by_char: HashMap<char, Vec<SpriteAsset>>,
-    rng: ThreadRng,
+    sprites_by_char: HashMap<char, BagRandom<SpriteAsset>>,
     letters: Texture<'a>,
-    numbers: Texture<'a>
+    numbers: Texture<'a>,
 }
 
 impl<'a> Sprites<'a> {
@@ -44,30 +32,30 @@ impl<'a> Sprites<'a> {
     }
 
     pub fn new(texture_creator: &'a TextureCreator<WindowContext>) -> Result<Self, String> {
-        let sprites = Self::load_sprites(letters::SPRITES_JSON_ZST)?
-            .into_iter()
+        let sprites = Self::load_sprites(letters::SPRITES_JSON_ZST)?.into_iter()
             .chain(Self::load_sprites(numbers::SPRITES_JSON_ZST)?.into_iter())
             .collect::<Vec<SpriteAsset>>();
 
-        let mut sprites_by_char: HashMap<char, Vec<SpriteAsset>> = HashMap::new();
-        let mut sprites_by_name: HashMap<String, SpriteAsset> = HashMap::new();
-        for sprite in sprites.iter() {
-            if sprites_by_name.insert(sprite.name().to_string(), sprite.clone()).is_some() {
-                return Err(format!("duplicate sprite {}", sprite.name()))
-            }
+        let total_triangles: usize = sprites.iter().map(|s| s.triangles().len()).sum();
+        dbg!(total_triangles); // 1.0 = 50965, 2.0 = 34333
 
-            let character = sprite.character().to_ascii_uppercase();
-            if let Some(entries) = sprites_by_char.get_mut(&character) {
-                entries.push(sprite.clone());
-            } else {
-                sprites_by_char.insert(character, vec![sprite.clone()]);
-            }
-        }
+        let sprites_by_name: HashMap<String, SpriteAsset> = sprites.iter()
+            .map(|sprite| (sprite.name().to_string(), sprite.clone()))
+            .collect();
+
+        let mut sprites_by_char: HashMap<char, BagRandom<SpriteAsset>> = sprites.into_iter()
+            .sorted_by(|a, b| a.character().cmp(&b.character()))
+            .group_by(|sprite| sprite.character().to_ascii_uppercase())
+            .into_iter()
+            .map(|(ch, grp)| (ch, BagRandom::new(grp.collect())))
+            .collect();
+
+        let char_bag = BagRandom::new(sprites_by_char.keys().copied().collect());
 
         let letters = texture_creator.load_texture_bytes(letters::SPRITES_PNG)?;
         let numbers = texture_creator.load_texture_bytes(numbers::SPRITES_PNG)?;
 
-        Ok(Self { sprites, sprites_by_name, sprites_by_char, rng: Default::default(), letters, numbers })
+        Ok(Self { sprites_by_name, sprites_by_char, letters, numbers, char_bag })
     }
 
     pub fn names(&self) -> Vec<String> {
@@ -75,13 +63,14 @@ impl<'a> Sprites<'a> {
     }
 
     pub fn pick_sprite_by_char(&mut self, key: char) -> Option<SpriteAsset> {
-        self.sprites_by_char.get(&key)
-            .and_then(|entries| entries.choose(&mut self.rng))
-            .cloned()
+        self.sprites_by_char.get_mut(&key)
+            .and_then(|entries| entries.next())
+            .map(|sprite| sprite.as_ref().clone()) // todo maybe we can leave it in a box
     }
 
     pub fn pick_random_sprite(&mut self) -> SpriteAsset {
-        self.sprites.choose(&mut self.rng).cloned().unwrap()
+        let ch = self.char_bag.next().unwrap();
+        self.pick_sprite_by_char(*ch).unwrap()
     }
 
     pub fn draw_sprite(&self, canvas: &mut WindowCanvas, body: AssetBody) -> Result<(), String> {

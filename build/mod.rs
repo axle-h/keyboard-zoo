@@ -15,7 +15,7 @@ fn main() {
 
     embed_resource::compile("icon.rc", embed_resource::NONE);
 
-    println!("1");
+    println!("0");
     build_sound_modules(ROOT_DIR).unwrap();
     build_sprite_sheets(ROOT_DIR).unwrap()
 }

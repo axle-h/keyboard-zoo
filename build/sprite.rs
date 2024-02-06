@@ -16,11 +16,21 @@ impl SpriteImage {
         let rgba_img =  image::open(&path)?.clone().into_rgba8();
         let name = path.with_extension("").file_name().unwrap().to_str().unwrap().to_string();
 
-        Ok(Self { name, rgba_img, path })
+        Ok(Self { path, name, rgba_img })
     }
 
     pub fn crop(&self, snip: &ContourSpriteSnip) -> SubImage<&RgbaImage> {
         imageops::crop_imm(&self.rgba_img, snip.x(), snip.y(), snip.width(), snip.height())
+    }
+
+    pub fn crop_and_scale(&self, snip: &ContourSpriteSnip, scale: f64) -> RgbaImage {
+        let cropped = self.crop(snip).to_image();
+        imageops::resize(
+            &cropped,
+            (snip.width() as f64 * scale).round() as u32,
+            (snip.height() as f64 * scale).round() as u32,
+            imageops::FilterType::Lanczos3
+        )
     }
 
     pub fn contours(&self) -> Vec<Contour<u32>> {
@@ -54,11 +64,16 @@ impl SpriteImage {
     pub fn rgba_img(&self) -> &RgbaImage {
         &self.rgba_img
     }
+    pub fn into_rgba_img(self) -> RgbaImage {
+        self.rgba_img
+    }
 }
+
+pub type ContourPoints = Vec<imageproc::point::Point<u32>>;
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct ContourSpriteSnip {
-    contour: Vec<imageproc::point::Point<u32>>,
+    contour: ContourPoints,
     snip: SpriteSnip
 }
 
@@ -89,7 +104,7 @@ impl ContourSpriteSnip {
         self.snip.height()
     }
 
-    pub fn contour(&self) -> &Vec<imageproc::point::Point<u32>> {
+    pub fn contour(&self) -> &ContourPoints {
         &self.contour
     }
     pub fn snip(&self) -> SpriteSnip {
