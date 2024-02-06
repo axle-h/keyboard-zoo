@@ -102,7 +102,8 @@ pub struct PhysicsConfig {
     pub body_friction: f32,
     pub body_restitution: f32,
     pub explosion_force_magnitude: f32,
-    pub explosion_distance: f32
+    pub explosion_distance: f32,
+    pub heavy_collision_threshold: f32
 }
 
 impl Default for Config {
@@ -145,6 +146,7 @@ impl Default for Config {
                 body_restitution: 0.5,
                 explosion_force_magnitude: 200.0,
                 explosion_distance: 100.0,
+                heavy_collision_threshold: 2.0
             }
         }
     }

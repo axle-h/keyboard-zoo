@@ -1,8 +1,8 @@
 # Keyboard Zoo
 
 TODO
-* redo music, create sound (my/esme's voice?) & destroy sound
-* collision sound?
+* 2 players duplicate controls
+* redo create sounds (my/esme's voice?)
 * shuffle between 3-4 bg particle displays
 * Characters
   * Pac-Man:

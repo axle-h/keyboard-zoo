@@ -236,6 +236,9 @@ impl KeyboardZoo {
                         );
                         sound.play_explosion();
                     }
+                    GameEvent::HeavyCollision => {
+                        sound.play_collision();
+                    }
                 }
             }
 

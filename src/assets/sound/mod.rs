@@ -4,7 +4,7 @@ use std::rc::Rc;
 use rand::{Rng, thread_rng};
 use rand::seq::SliceRandom;
 use sdl2::get_error;
-use sdl2::mixer::{Chunk, Music};
+use sdl2::mixer::{Channel, Chunk, Music, reserve_channels};
 use sdl2::rwops::RWops;
 use sdl2::sys::mixer;
 use crate::assets::sound::letter::letter_sound;
@@ -19,11 +19,14 @@ mod effects;
 
 static mut MUSIC_QUEUE: Option<Rc<RefCell<VecDeque<Music<'static>>>>> = None;
 
+const COLLISION_CHANNELS: usize = 5;
+
 pub struct Sound {
     letter: HashMap<char, Chunk>,
     destroy: BagRandom<Chunk>,
     explosion: BagRandom<Chunk>,
-    collision: BagRandom<Chunk>
+    collision: BagRandom<Chunk>,
+    collision_channels: [Channel; COLLISION_CHANNELS]
 }
 
 impl Sound {
@@ -43,7 +46,14 @@ impl Sound {
         let explosion = Self::load_sounds(&config, &effects::explosion::ASSETS);
         let collision = Self::load_sounds(&config, &effects::collision::ASSETS);
 
-        Ok(Self { letter, destroy, explosion, collision })
+        reserve_channels(COLLISION_CHANNELS as i32);
+        let collision_channels = (0..COLLISION_CHANNELS)
+            .map(|i| Channel(i as i32))
+            .collect::<Vec<Channel>>()
+            .try_into()
+            .unwrap();
+
+        Ok(Self { letter, destroy, explosion, collision, collision_channels })
     }
 
     pub fn play_letter(&self, ch: char) {
@@ -61,7 +71,11 @@ impl Sound {
     }
 
     pub fn play_collision(&mut self) {
-        self.explosion.next().unwrap().try_play();
+        for channel in self.collision_channels.iter() {
+            if !channel.is_playing() {
+                channel.play(self.collision.next().unwrap().as_ref(), 0).unwrap();
+            }
+        }
     }
 
     pub fn play_music(&mut self) -> Result<(), String> {

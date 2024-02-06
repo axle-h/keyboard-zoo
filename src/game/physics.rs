@@ -1,4 +1,4 @@
-use std::cell::{RefCell, RefMut};
+use std::cell::{Ref, RefCell, RefMut};
 use std::collections::hash_set::IntoIter;
 use std::collections::HashSet;
 use std::f64::consts::PI;
@@ -6,12 +6,12 @@ use std::ops::Deref;
 use std::rc::Rc;
 use std::time::Duration;
 use box2d_rs::b2_body::{B2body, B2bodyDef, B2bodyType, BodyPtr};
-use box2d_rs::b2_collision::B2AABB;
+use box2d_rs::b2_collision::{B2AABB, B2worldManifold};
 use box2d_rs::b2_contact::B2contactDynTrait;
-use box2d_rs::b2_fixture::{B2fixtureDef, FixturePtr};
+use box2d_rs::b2_fixture::{B2fixture, B2fixtureDef, FixturePtr};
 use box2d_rs::b2_math::{b2_mul_transform_by_vec2, B2Transform, B2vec2};
 use box2d_rs::b2_world::{B2world, B2worldPtr};
-use box2d_rs::b2_world_callbacks::B2contactListener;
+use box2d_rs::b2_world_callbacks::{B2contactImpulse, B2contactListener};
 use box2d_rs::b2rs_common::UserDataType;
 use box2d_rs::shapes::b2_edge_shape::B2edgeShape;
 use box2d_rs::shapes::b2_polygon_shape::B2polygonShape;
@@ -147,25 +147,28 @@ pub struct Physics {
 }
 
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
+enum ContactMagnitude { Light, Heavy }
+
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
 struct ContactedBody {
     body_id: u128,
     fixture_id: Option<u128>,
     character: Option<CharacterType>
 }
 
-#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)] // todo move into struct with enum 'target' field and extract common
 enum Contact {
-    WithGround { body: ContactedBody },
-    WithAsset { body: ContactedBody, target: ContactedBody },
-    WithCharacter { body: ContactedBody, target: CharacterType }
+    WithGround { body: ContactedBody, magnitude: ContactMagnitude },
+    WithAsset { body: ContactedBody, magnitude: ContactMagnitude, target: ContactedBody },
+    WithCharacter { body: ContactedBody, magnitude: ContactMagnitude, target: CharacterType }
 }
 
 impl Contact {
-    pub fn new<B : Into<Option<ContactedBody>>>(body: ContactedBody, target: B) -> Self {
+    pub fn new<B : Into<Option<ContactedBody>>>(body: ContactedBody, target: B, magnitude: ContactMagnitude) -> Self {
         match target.into() {
-            Some(target) if target.character.is_some() => Self::WithCharacter { body, target: target.character.unwrap() },
-            Some(target) => Self::WithAsset { body, target },
-            None => Self::WithGround { body }
+            Some(target) if target.character.is_some() => Self::WithCharacter { body, target: target.character.unwrap(), magnitude },
+            Some(target) => Self::WithAsset { body, target, magnitude },
+            None => Self::WithGround { body, magnitude }
         }
     }
 
@@ -179,17 +182,17 @@ impl Contact {
 }
 
 struct ContactListener {
+    heavy_collision_threshold: f32,
     contacts: HashSet<Contact>
 }
 
 impl ContactListener {
-    fn new() -> Self {
-        Self { contacts: HashSet::new() }
+    fn new(heavy_collision_threshold: f32) -> Self {
+        Self { heavy_collision_threshold, contacts: HashSet::new() }
     }
 
-    fn contact_meta(fixture_ptr: FixturePtr<UserDataTypes>) -> Option<ContactedBody> {
-        let fixture = fixture_ptr.borrow();
-        if let Some(data) = fixture.get_body().borrow().get_user_data() {
+    fn contact_meta(fixture: Ref<B2fixture<UserDataTypes>>, body: Ref<B2body<UserDataTypes>>) -> Option<ContactedBody> {
+        if let Some(data) = body.get_user_data() {
             Some(ContactedBody {
                 body_id: data.id,
                 fixture_id: fixture.get_user_data().map(|f| f.id),
@@ -202,17 +205,39 @@ impl ContactListener {
 }
 
 impl B2contactListener<UserDataTypes> for ContactListener {
-    fn begin_contact(&mut self, contact: &mut dyn B2contactDynTrait<UserDataTypes>) {
-        let base = contact.get_base();
-        let body_a = Self::contact_meta(base.get_fixture_a());
-        let body_b = Self::contact_meta(base.get_fixture_b());
 
-        if let Some(body_a) = body_a {
-            self.contacts.insert(Contact::new(body_a, body_b));
+    fn post_solve(&mut self, contact: &mut dyn B2contactDynTrait<UserDataTypes>, impulse: &B2contactImpulse) {
+        let base = contact.get_base();
+
+        let mut world_manifold: B2worldManifold = Default::default();
+        base.get_world_manifold(&mut world_manifold);
+        let fixture_ptr_a = base.get_fixture_a();
+        let fixture_a = fixture_ptr_a.borrow();
+        let body_ptr_a = fixture_a.get_body();
+        let body_a = body_ptr_a.borrow();
+
+        let fixture_ptr_b = base.get_fixture_b();
+        let fixture_b = fixture_ptr_b.borrow();
+        let body_ptr_b = fixture_b.get_body();
+        let body_b = body_ptr_b.borrow();
+
+        let v_a = body_a.get_linear_velocity_from_world_point(world_manifold.points[0]);
+        let v_b = body_b.get_linear_velocity_from_world_point(world_manifold.points[0]);
+        let contact_velocity = (v_a - v_b).length();
+
+        // todo this probably needs to scale with the body
+        let contact_magnitude =
+            if contact_velocity > self.heavy_collision_threshold { ContactMagnitude::Heavy } else { ContactMagnitude::Light };
+
+        let meta_a = Self::contact_meta(fixture_a, body_a);
+        let meta_b = Self::contact_meta(fixture_b, body_b);
+
+        if let Some(meta_a) = meta_a {
+            self.contacts.insert(Contact::new(meta_a, meta_b, contact_magnitude));
         }
 
-        if let Some(body_b) = body_b {
-            self.contacts.insert(Contact::new(body_b, body_a));
+        if let Some(meta_b) = meta_b {
+            self.contacts.insert(Contact::new(meta_b, meta_a, contact_magnitude));
         }
     }
 }
@@ -222,7 +247,7 @@ impl Physics {
         let gravity = B2vec2::new(0.0, config.gravity);
         let mut world: B2worldPtr<UserDataTypes> = B2world::new(gravity);
 
-        let contact_listener = Rc::new(RefCell::new(ContactListener::new()));
+        let contact_listener = Rc::new(RefCell::new(ContactListener::new(config.heavy_collision_threshold)));
         world.borrow_mut().set_contact_listener(contact_listener.clone());
         let (world_width, world_height) = scale.b2d_size();
 
@@ -284,19 +309,29 @@ impl Physics {
         let mut to_destroy = HashSet::new();
         let mut character_ground_collisions = HashSet::new();
         let mut events = vec![];
+        let mut is_heavy_collision = false;
         for contact in self.contact_listener.borrow_mut().contacts.drain() {
 
             match contact {
-                Contact::WithGround { body } if body.character.is_some() => {
+                Contact::WithGround { body, .. } if body.character.is_some() => {
                     // report collision to the character
                     character_ground_collisions.insert(body.body_id);
                 }
-                Contact::WithCharacter { body, target } if target.destroys_on_collision() => {
+                Contact::WithCharacter { body, target, .. } if target.destroys_on_collision() => {
                     to_destroy.insert(body.body_id);
                     events.push(GameEvent::CharacterAttack(target));
                 }
+                Contact::WithGround { body, magnitude } | Contact::WithAsset { body, magnitude, .. }
+                    if magnitude == ContactMagnitude::Heavy && body.character.is_none() => {
+                    // a heavy collision between two non-character assets or a non-character asset and the ground
+                    is_heavy_collision = true;
+                }
                 _ => {}
             }
+        }
+
+        if is_heavy_collision {
+            events.push(GameEvent::HeavyCollision);
         }
 
         let mut to_transform = vec![];
