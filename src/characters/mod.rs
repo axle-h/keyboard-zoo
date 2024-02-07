@@ -84,6 +84,17 @@ impl Character {
     }
 }
 
+pub struct CharacterWorldState {
+    is_colliding: bool,
+    closest_body: Option<B2vec2>
+}
+
+impl CharacterWorldState {
+    pub fn new(is_colliding: bool, closest_body: Option<B2vec2>) -> Self {
+        Self { is_colliding, closest_body }
+    }
+}
+
 pub struct CharacterFactory {
     pac_man: CharacterLifetimeFactory,
     rng: ThreadRng,
@@ -110,10 +121,10 @@ impl CharacterFactory {
         }
     }
 
-    pub fn update(&mut self, character: &mut Character, delta: Duration, is_ground_collision: bool) -> CharacterPhysics {
+    pub fn update(&mut self, character: &mut Character, delta: Duration, world_state: CharacterWorldState) -> CharacterPhysics {
         match character {
             Character::PacMan(pac_man) => {
-                pac_man.update(&mut self.rng, delta, is_ground_collision);
+                pac_man.update(&mut self.rng, delta, world_state);
                 CharacterPhysics::new(pac_man.angle(), pac_man.velocity(self.config.polygon_scale))
             }
         }

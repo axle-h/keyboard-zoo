@@ -1,5 +1,7 @@
 #![cfg_attr(not(test), windows_subsystem = "windows")]
 
+use crate::sandbox::sandbox;
+
 mod build_info;
 mod config;
 mod frame_rate;

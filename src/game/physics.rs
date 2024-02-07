@@ -1,6 +1,7 @@
 use std::cell::{Ref, RefCell, RefMut};
 use std::collections::HashSet;
 use std::f64::consts::PI;
+use std::ops::Sub;
 use std::rc::Rc;
 use std::time::Duration;
 use box2d_rs::b2_body::{B2body, B2bodyDef, B2bodyType, BodyPtr};
@@ -18,7 +19,7 @@ use rand::{Rng, thread_rng};
 use sdl2::pixels::Color;
 use sdl2::rect::{Point, Rect};
 use sdl2::render::WindowCanvas;
-use crate::characters::{Character, CharacterFactory, CharacterType};
+use crate::characters::{Character, CharacterFactory, CharacterType, CharacterWorldState};
 use crate::assets::geometry::SpriteAsset;
 use crate::characters::lifetime::CharacterState;
 use crate::config::PhysicsConfig;
@@ -96,15 +97,14 @@ enum ContactMagnitude { Light, Heavy }
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
 struct ContactedBody {
     body_id: u128,
-    fixture_id: Option<u128>,
     character: Option<CharacterType>
 }
 
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
 enum ContactTarget {
     Ground,
-    Alphanumeric(ContactedBody),
-    Character(CharacterType)
+    Alphanumeric { id: u128 },
+    Character { id: u128, character_type: CharacterType }
 }
 
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
@@ -115,14 +115,26 @@ struct Contact {
 }
 
 impl Contact {
-    pub fn new<B : Into<Option<ContactedBody>>>(body: ContactedBody, target: B, magnitude: ContactMagnitude) -> Self {
-        let target = match target.into() {
-            Some(target_body) if target_body.character.is_some() => ContactTarget::Character(target_body.character.unwrap()),
-            Some(target_body) => ContactTarget::Alphanumeric(target_body),
-            None => ContactTarget::Ground
-        };
+    // pub fn new<B : Into<Option<ContactedBody>>>(body: ContactedBody, target: B, magnitude: ContactMagnitude) -> Self {
+    //     let target = match target.into() {
+    //         Some(target_body) if target_body.character.is_some() => ContactTarget::Character(target_body.character.unwrap()),
+    //         Some(target_body) => ContactTarget::Alphanumeric(target_body),
+    //         None => ContactTarget::Ground
+    //     };
+    //
+    //     Self { body, target, magnitude }
+    // }
 
-        Self { body, target, magnitude }
+    pub fn with_ground(body: ContactedBody, magnitude: ContactMagnitude) -> Self {
+        Self { body, magnitude, target: ContactTarget::Ground }
+    }
+
+    pub fn between_characters(body: ContactedBody, target: ContactedBody, magnitude: ContactMagnitude) -> Self {
+        Self { body, magnitude, target: ContactTarget::Character { id: target.body_id, character_type: target.character.unwrap() } }
+    }
+
+    pub fn between_bodies(maybe_character_body: ContactedBody, target: ContactedBody, magnitude: ContactMagnitude) -> Self {
+        Self { body: maybe_character_body, magnitude, target: ContactTarget::Alphanumeric { id: target.body_id } }
     }
 }
 
@@ -136,11 +148,10 @@ impl ContactListener {
         Self { heavy_collision_threshold, contacts: HashSet::new() }
     }
 
-    fn contact_meta(fixture: Ref<B2fixture<UserDataTypes>>, body: Ref<B2body<UserDataTypes>>) -> Option<ContactedBody> {
+    fn contact_meta(body: Ref<B2body<UserDataTypes>>) -> Option<ContactedBody> {
         if let Some(data) = body.get_user_data() {
             Some(ContactedBody {
                 body_id: data.id,
-                fixture_id: fixture.get_user_data().map(|f| f.id),
                 character: if let BodyType::Character(character) = data.body_type {
                     Some(character.character_type())
                 } else {
@@ -177,15 +188,38 @@ impl B2contactListener<UserDataTypes> for ContactListener {
         let contact_magnitude =
             if contact_velocity > self.heavy_collision_threshold { ContactMagnitude::Heavy } else { ContactMagnitude::Light };
 
-        let meta_a = Self::contact_meta(fixture_a, body_a);
-        let meta_b = Self::contact_meta(fixture_b, body_b);
+        let meta_a = Self::contact_meta(body_a);
+        let meta_b = Self::contact_meta(body_b);
 
-        if let Some(meta_a) = meta_a {
-            self.contacts.insert(Contact::new(meta_a, meta_b, contact_magnitude));
+        // if let Some(meta_a) = meta_a {
+        //     self.contacts.insert(Contact::new(meta_a, meta_b, contact_magnitude));
+        // }
+        //
+        // if let Some(meta_b) = meta_b {
+        //     self.contacts.insert(Contact::new(meta_b, meta_a, contact_magnitude));
+        // }
+
+        if meta_a.is_none() && meta_b.is_none() {
+            return;
         }
 
-        if let Some(meta_b) = meta_b {
-            self.contacts.insert(Contact::new(meta_b, meta_a, contact_magnitude));
+        if meta_a.is_none() || meta_b.is_none() {
+            // collision with the ground
+            let meta = [meta_a, meta_b].into_iter().find(|m| m.is_some()).unwrap().unwrap();
+            self.contacts.insert(Contact::with_ground(meta, contact_magnitude));
+            return;
+        }
+
+        let meta_a = meta_a.unwrap();
+        let meta_b = meta_b.unwrap();
+        if meta_a.character.is_some() && meta_b.character.is_some() {
+            // collision between two characters
+            self.contacts.insert(Contact::between_characters(meta_a, meta_b, contact_magnitude));
+        } else if meta_b.character.is_some() {
+            // prefer the character body to be the collision subject
+            self.contacts.insert(Contact::between_bodies(meta_b, meta_a, contact_magnitude));
+        } else {
+            self.contacts.insert(Contact::between_bodies(meta_a, meta_b, contact_magnitude));
         }
     }
 }
@@ -255,26 +289,35 @@ impl Physics {
         self.world.borrow_mut().step(delta.as_secs_f32(), self.config.velocity_iterations, self.config.position_iterations);
 
         let mut to_destroy = HashSet::new();
-        let mut character_ground_collisions = HashSet::new();
+        let mut character_reported_collisions = HashSet::new();
         let mut events = vec![];
         let mut is_heavy_collision = false;
         for contact in self.contact_listener.borrow_mut().contacts.drain() {
-
-            match contact.target {
-                ContactTarget::Ground if contact.body.character.is_some() => {
-                    // report collision to the character
-                    character_ground_collisions.insert(contact.body.body_id);
+            if let Some(character_subject) = contact.body.character {
+                // collision where a character is the subject
+                match contact.target {
+                    ContactTarget::Ground => {
+                        // report collision to the character
+                        character_reported_collisions.insert(contact.body.body_id);
+                    }
+                    ContactTarget::Alphanumeric { id } => {
+                        if character_subject.destroys_on_collision() {
+                            to_destroy.insert(id);
+                            events.push(GameEvent::CharacterAttack(character_subject));
+                        }
+                    }
+                    ContactTarget::Character { id, .. } => {
+                        // report collision to both characters
+                        character_reported_collisions.insert(id);
+                        character_reported_collisions.insert(contact.body.body_id);
+                    }
                 }
-                ContactTarget::Character(character_type) if character_type.destroys_on_collision() => {
-                    to_destroy.insert(contact.body.body_id);
-                    events.push(GameEvent::CharacterAttack(character_type));
-                }
-                ContactTarget::Ground | ContactTarget::Alphanumeric(_)
-                    if contact.magnitude == ContactMagnitude::Heavy && contact.body.character.is_none() => {
+            } else {
+                // collision between non-character bodies
+                if contact.magnitude == ContactMagnitude::Heavy && contact.body.character.is_none() {
                     // a heavy collision between two alphanumerics or a alphanumeric and the ground
                     is_heavy_collision = true;
                 }
-                _ => {}
             }
         }
 
@@ -282,13 +325,32 @@ impl Physics {
             events.push(GameEvent::HeavyCollision);
         }
 
+        let mut alphanumeric_positions = vec![];
+        for body_ptr in self.world.borrow().get_body_list().iter() {
+            let body = body_ptr.borrow_mut();
+            if let Some(BodyType::Alphanumeric(_)) = body.get_user_data().map(|d| d.body_type) {
+                alphanumeric_positions.push(body.get_position());
+            }
+        }
+
         let mut to_transform = vec![];
         for body_ptr in self.world.borrow().get_body_list().iter() {
             let mut body = body_ptr.borrow_mut();
             if let Some(data) = body.get_user_data().as_mut() {
                 if let BodyType::Character(character) = &mut data.body_type {
-                    let is_ground_collision = character_ground_collisions.contains(&data.id);
-                    let character_physics = self.character_factory.update(character, delta, is_ground_collision);
+                    let is_colliding = character_reported_collisions.contains(&data.id);
+                    let position = body.get_position();
+                    let distance_to_closest_body = alphanumeric_positions.iter()
+                        .map(|&v| {
+                            let distance = position - v;
+                            (distance, distance.length())
+                        })
+                        .filter(|(v, d)| *d > 0.0001 || *d < 0.0001) // exclude self
+                        .min_by(|(v1, d1), (v2, d2)| (*d1).total_cmp(d2))
+                        .map(|(v1, _)| v1);
+
+                    let character_world_state = CharacterWorldState::new(is_colliding, distance_to_closest_body);
+                    let character_physics = self.character_factory.update(character, delta, character_world_state);
                     if !character.state().is_alive() {
                         to_destroy.insert(data.id);
                     }

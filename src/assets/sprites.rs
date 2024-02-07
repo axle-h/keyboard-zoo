@@ -36,9 +36,6 @@ impl<'a> Sprites<'a> {
             .chain(Self::load_sprites(numbers::SPRITES_JSON_ZST)?.into_iter())
             .collect::<Vec<SpriteAsset>>();
 
-        let total_triangles: usize = sprites.iter().map(|s| s.triangles().len()).sum();
-        dbg!(total_triangles); // 1.0 = 50965, 2.0 = 34333
-
         let sprites_by_name: HashMap<String, SpriteAsset> = sprites.iter()
             .map(|sprite| (sprite.name().to_string(), sprite.clone()))
             .collect();
