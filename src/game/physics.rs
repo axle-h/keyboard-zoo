@@ -1,8 +1,6 @@
 use std::cell::{Ref, RefCell, RefMut};
-use std::collections::hash_set::IntoIter;
 use std::collections::HashSet;
 use std::f64::consts::PI;
-use std::ops::Deref;
 use std::rc::Rc;
 use std::time::Duration;
 use box2d_rs::b2_body::{B2body, B2bodyDef, B2bodyType, BodyPtr};
@@ -31,89 +29,35 @@ use crate::game::polygon::Triangle;
 use crate::game::scale::PhysicsScale;
 
 #[derive(Debug, Clone)]
-pub enum Body {
-    Asset(AssetBody),
-    Character(CharacterBody)
+pub struct AlphanumericBody {
+    pub name: String,
+    pub alphanumeric: char,
 }
 
-impl Body {
-    pub fn id(&self) -> u128 {
-        match self {
-            Body::Asset(body) => body.id,
-            Body::Character(body) => body.id
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct AssetBody {
-    id: u128,
-    aabb: Rect,
-    angle: f64,
-    asset_name: String,
-    asset_character: char,
-    polygons: Vec<Triangle>,
-}
-
-impl AssetBody {
-    pub fn id(&self) -> u128 {
-        self.id
-    }
-
-    pub fn aabb(&self) -> Rect {
-        self.aabb
-    }
-
-    pub fn asset_name(&self) -> &str {
-        &self.asset_name
-    }
-
-    pub fn asset_character(&self) -> char {
-        self.asset_character
-    }
-
-    pub fn angle(&self) -> f64 {
-        self.angle
-    }
-
-    pub fn polygons(&self) -> &Vec<Triangle> {
-        &self.polygons
-    }
+#[derive(Default, Debug, Clone)]
+pub enum BodyType {
+    #[default]
+    Unknown,
+    Alphanumeric(AlphanumericBody),
+    Character(Character)
 }
 
 #[derive(Debug, Clone)]
-pub struct CharacterBody {
-    id: u128,
-    aabb: Rect,
-    angle: f64,
-    character: Character
+pub struct Body {
+    pub id: u128,
+    pub aabb: Rect,
+    pub angle: f64,
+    pub polygons: Vec<Triangle>,
+    pub body_type: BodyType
 }
 
-impl CharacterBody {
-    pub fn id(&self) -> u128 {
-        self.id
-    }
-
-    pub fn aabb(&self) -> Rect {
-        self.aabb
-    }
-
-    pub fn angle(&self) -> f64 {
-        self.angle
-    }
-
-    pub fn character(&self) -> &Character {
-        &self.character
-    }
-}
 
 #[derive(Default, Debug, Clone)]
 struct BodyData {
     id: u128,
     width: f32,
     height: f32,
-    asset_name: Option<(char, String)>,
-    character: Option<Character>
+    body_type: BodyType
 }
 
 #[derive(Debug, Clone)]
@@ -156,28 +100,29 @@ struct ContactedBody {
     character: Option<CharacterType>
 }
 
-#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)] // todo move into struct with enum 'target' field and extract common
-enum Contact {
-    WithGround { body: ContactedBody, magnitude: ContactMagnitude },
-    WithAsset { body: ContactedBody, magnitude: ContactMagnitude, target: ContactedBody },
-    WithCharacter { body: ContactedBody, magnitude: ContactMagnitude, target: CharacterType }
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
+enum ContactTarget {
+    Ground,
+    Alphanumeric(ContactedBody),
+    Character(CharacterType)
+}
+
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
+struct Contact {
+    body: ContactedBody,
+    magnitude: ContactMagnitude,
+    target: ContactTarget
 }
 
 impl Contact {
     pub fn new<B : Into<Option<ContactedBody>>>(body: ContactedBody, target: B, magnitude: ContactMagnitude) -> Self {
-        match target.into() {
-            Some(target) if target.character.is_some() => Self::WithCharacter { body, target: target.character.unwrap(), magnitude },
-            Some(target) => Self::WithAsset { body, target, magnitude },
-            None => Self::WithGround { body, magnitude }
-        }
-    }
+        let target = match target.into() {
+            Some(target_body) if target_body.character.is_some() => ContactTarget::Character(target_body.character.unwrap()),
+            Some(target_body) => ContactTarget::Alphanumeric(target_body),
+            None => ContactTarget::Ground
+        };
 
-    fn body(&self) -> &ContactedBody {
-        match self {
-            Contact::WithGround { body, .. } => body,
-            Contact::WithAsset { body, .. } => body,
-            Contact::WithCharacter { body, .. } => body
-        }
+        Self { body, target, magnitude }
     }
 }
 
@@ -196,7 +141,11 @@ impl ContactListener {
             Some(ContactedBody {
                 body_id: data.id,
                 fixture_id: fixture.get_user_data().map(|f| f.id),
-                character: data.character.map(|c| c.character_type()),
+                character: if let BodyType::Character(character) = data.body_type {
+                    Some(character.character_type())
+                } else {
+                    None
+                },
             })
         } else {
             None
@@ -206,7 +155,7 @@ impl ContactListener {
 
 impl B2contactListener<UserDataTypes> for ContactListener {
 
-    fn post_solve(&mut self, contact: &mut dyn B2contactDynTrait<UserDataTypes>, impulse: &B2contactImpulse) {
+    fn post_solve(&mut self, contact: &mut dyn B2contactDynTrait<UserDataTypes>, _: &B2contactImpulse) {
         let base = contact.get_base();
 
         let mut world_manifold: B2worldManifold = Default::default();
@@ -225,7 +174,6 @@ impl B2contactListener<UserDataTypes> for ContactListener {
         let v_b = body_b.get_linear_velocity_from_world_point(world_manifold.points[0]);
         let contact_velocity = (v_a - v_b).length();
 
-        // todo this probably needs to scale with the body
         let contact_magnitude =
             if contact_velocity > self.heavy_collision_threshold { ContactMagnitude::Heavy } else { ContactMagnitude::Light };
 
@@ -312,18 +260,18 @@ impl Physics {
         let mut is_heavy_collision = false;
         for contact in self.contact_listener.borrow_mut().contacts.drain() {
 
-            match contact {
-                Contact::WithGround { body, .. } if body.character.is_some() => {
+            match contact.target {
+                ContactTarget::Ground if contact.body.character.is_some() => {
                     // report collision to the character
-                    character_ground_collisions.insert(body.body_id);
+                    character_ground_collisions.insert(contact.body.body_id);
                 }
-                Contact::WithCharacter { body, target, .. } if target.destroys_on_collision() => {
-                    to_destroy.insert(body.body_id);
-                    events.push(GameEvent::CharacterAttack(target));
+                ContactTarget::Character(character_type) if character_type.destroys_on_collision() => {
+                    to_destroy.insert(contact.body.body_id);
+                    events.push(GameEvent::CharacterAttack(character_type));
                 }
-                Contact::WithGround { body, magnitude } | Contact::WithAsset { body, magnitude, .. }
-                    if magnitude == ContactMagnitude::Heavy && body.character.is_none() => {
-                    // a heavy collision between two non-character assets or a non-character asset and the ground
+                ContactTarget::Ground | ContactTarget::Alphanumeric(_)
+                    if contact.magnitude == ContactMagnitude::Heavy && contact.body.character.is_none() => {
+                    // a heavy collision between two alphanumerics or a alphanumeric and the ground
                     is_heavy_collision = true;
                 }
                 _ => {}
@@ -338,7 +286,7 @@ impl Physics {
         for body_ptr in self.world.borrow().get_body_list().iter() {
             let mut body = body_ptr.borrow_mut();
             if let Some(data) = body.get_user_data().as_mut() {
-                if let Some(character) = data.character.as_mut() {
+                if let BodyType::Character(character) = &mut data.body_type {
                     let is_ground_collision = character_ground_collisions.contains(&data.id);
                     let character_physics = self.character_factory.update(character, delta, is_ground_collision);
                     if !character.state().is_alive() {
@@ -446,7 +394,6 @@ impl Physics {
             }
         }
 
-        let center = aabb.get_center();
         (aabb, to_destroy)
     }
 
@@ -477,8 +424,7 @@ impl Physics {
             id: self.rng.gen(),
             width,
             height,
-            asset_name: None,
-            character: Some(character)
+            body_type: BodyType::Character(character)
         };
         let body_def = B2bodyDef {
             position,
@@ -516,8 +462,9 @@ impl Physics {
             id: self.rng.gen(),
             width,
             height,
-            asset_name: Some((sprite.character(), sprite.name().to_string())),
-            character: None
+            body_type: BodyType::Alphanumeric(
+                AlphanumericBody { name: sprite.name().to_string(), alphanumeric: sprite.character() }
+            )
         };
         let body_def = B2bodyDef {
             position,
@@ -577,41 +524,28 @@ impl Physics {
             );
             let angle = body.get_angle() as f64 * 180.0 / PI;
 
-            if let Some(character) = data.character {
-                let character_body = CharacterBody {
-                    id: data.id,
-                    aabb,
-                    angle,
-                    character,
-                };
-                Some(Body::Character(character_body))
-            } else if let Some((asset_character, asset_name)) = data.asset_name {
-                let transform = body.get_transform();
-                let mut polygons = vec![];
-                for fixture in body.get_fixture_list().iter() {
-                    let fixture = fixture.borrow();
-                    if let Some(polygon) = fixture.get_shape().as_polygon() {
-                        let points: [Point; 3] = polygon.m_vertices[..polygon.m_count].iter()
-                            .map(|v| self.scale.b2d_vec2_to_sdl(b2_mul_transform_by_vec2(transform, *v)))
-                            .collect::<Vec<Point>>()
-                            .try_into()
-                            .unwrap();
-                        let color = fixture.get_user_data().unwrap().color;
-                        polygons.push(Triangle::new(points, color));
-                    }
+            let transform = body.get_transform();
+            let mut polygons = vec![];
+            for fixture in body.get_fixture_list().iter() {
+                let fixture = fixture.borrow();
+                if let Some(polygon) = fixture.get_shape().as_polygon() {
+                    let points: [Point; 3] = polygon.m_vertices[..polygon.m_count].iter()
+                        .map(|v| self.scale.b2d_vec2_to_sdl(b2_mul_transform_by_vec2(transform, *v)))
+                        .collect::<Vec<Point>>()
+                        .try_into()
+                        .unwrap();
+                    let color = fixture.get_user_data().unwrap().color;
+                    polygons.push(Triangle::new(points, color));
                 }
-                let asset_body = AssetBody {
-                    id: data.id,
-                    aabb,
-                    asset_character,
-                    asset_name,
-                    angle,
-                    polygons,
-                };
-                Some(Body::Asset(asset_body))
-            } else {
-                None
             }
+
+            Some(Body {
+                id: data.id,
+                aabb,
+                angle,
+                polygons,
+                body_type: data.body_type
+            })
         } else {
             None
         }
@@ -661,7 +595,7 @@ impl Physics {
                 {
                     let mut body = body_ptr.borrow_mut();
                     if let Some(body_data) = body.get_user_data().as_mut() {
-                        if let Some(character) = body_data.character.as_mut() {
+                        if let BodyType::Character(character) = &mut body_data.body_type {
                             behaviour = match character.state() {
                                 CharacterState::Alive => {
                                     // "kill" this character

@@ -7,12 +7,10 @@ use sdl2::get_error;
 use sdl2::mixer::{Channel, Chunk, Music, reserve_channels};
 use sdl2::rwops::RWops;
 use sdl2::sys::mixer;
-use crate::assets::sound::letter::letter_sound;
 use crate::assets::sound::playable::Playable;
 use crate::config::AudioConfig;
 use crate::random::BagRandom;
 
-mod letter;
 pub mod playable;
 mod music;
 mod effects;
@@ -22,7 +20,7 @@ static mut MUSIC_QUEUE: Option<Rc<RefCell<VecDeque<Music<'static>>>>> = None;
 const COLLISION_CHANNELS: usize = 5;
 
 pub struct Sound {
-    letter: HashMap<char, Chunk>,
+    alphanumeric: HashMap<char, Chunk>,
     destroy: BagRandom<Chunk>,
     explosion: BagRandom<Chunk>,
     collision: BagRandom<Chunk>,
@@ -39,9 +37,7 @@ impl Sound {
     }
 
     pub fn new(config: AudioConfig) -> Result<Self, String> {
-        let letter = ('a' ..= 'z').chain('0' ..= '9')
-            .map(|ch| (ch, config.load_chunk(letter_sound(ch)).unwrap())).collect();
-
+        let alphanumeric = effects::alphanumeric::alphanumeric_sounds(&config);
         let destroy = Self::load_sounds(&config, &effects::destroy::ASSETS);
         let explosion = Self::load_sounds(&config, &effects::explosion::ASSETS);
         let collision = Self::load_sounds(&config, &effects::collision::ASSETS);
@@ -53,11 +49,11 @@ impl Sound {
             .try_into()
             .unwrap();
 
-        Ok(Self { letter, destroy, explosion, collision, collision_channels })
+        Ok(Self { alphanumeric, destroy, explosion, collision, collision_channels })
     }
 
-    pub fn play_letter(&self, ch: char) {
-        if let Some(chunk) = self.letter.get(&ch) {
+    pub fn play_alphanumeric(&self, ch: char) {
+        if let Some(chunk) = self.alphanumeric.get(&ch) {
             chunk.try_play();
         }
     }

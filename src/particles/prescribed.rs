@@ -8,7 +8,7 @@ use crate::particles::source::{AggregateParticleSource, ParticleModulation, Part
 use sdl2::pixels::Color;
 use sdl2::rect::{Point, Rect};
 use std::time::Duration;
-use crate::game::physics::{AssetBody, Body};
+use crate::game::physics::Body;
 use crate::game::polygon::{Circle, Triangle};
 
 pub fn explosion<P : Into<Point>>(center: P, scale: &Scale) -> Box<dyn ParticleSource> {
@@ -78,8 +78,8 @@ pub fn sprite_triangle_source(triangle: Triangle, scale: &Scale) -> Box<dyn Part
         .into_box()
 }
 
-pub fn sprite_lattice_source(body: AssetBody, scale: &Scale) -> Box<dyn ParticleSource> {
-    let position = scale.polygon_lattice_source(body.polygons());
+pub fn sprite_lattice_source(polygons: Vec<Triangle>, scale: &Scale) -> Box<dyn ParticleSource> {
+    let position = scale.polygon_lattice_source(&polygons);
     RandomParticleSource::new(position, ParticleModulation::Cascade)
         .with_static_properties(
             ParticleSprite::Circle05,

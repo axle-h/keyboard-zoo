@@ -8,7 +8,7 @@ use sdl2::rect::Rect;
 use sdl2::render::{Texture, TextureCreator, WindowCanvas};
 use sdl2::video::WindowContext;
 use crate::assets::geometry::{SpriteAsset, SpriteAssetSheet};
-use crate::game::physics::AssetBody;
+use crate::game::physics::Body;
 use crate::assets::letters;
 use crate::assets::numbers;
 use crate::random::BagRandom;
@@ -73,20 +73,20 @@ impl<'a> Sprites<'a> {
         self.pick_sprite_by_char(*ch).unwrap()
     }
 
-    pub fn draw_sprite(&self, canvas: &mut WindowCanvas, body: AssetBody) -> Result<(), String> {
-        if let Some(sprite) = self.sprites_by_name.get(body.asset_name()) {
+    pub fn draw_sprite(&self, canvas: &mut WindowCanvas, name: &str, aabb: Rect, angle: f64) -> Result<(), String> {
+        if let Some(sprite) = self.sprites_by_name.get(name) {
             let snip = sprite.snip();
             canvas.copy_ex(
                 if sprite.character().is_numeric() { &self.numbers } else { &self.letters },
                 Rect::new(snip.x() as i32, snip.y() as i32, snip.width(), snip.height()),
-                body.aabb(),
-                body.angle(),
+                aabb,
+                angle,
                 None,
                 false,
                 false
             )
         } else {
-            Err(format!("unknown sprite {}", body.asset_name()))
+            Err(format!("unknown sprite {}", name))
         }
     }
 }

@@ -10,7 +10,6 @@ use sdl2::image::{InitFlag as ImageInitFlag, Sdl2ImageContext};
 use sdl2::mixer::{InitFlag as MixerInitFlag, DEFAULT_CHANNELS, DEFAULT_FORMAT};
 use sdl2::pixels::Color;
 use sdl2::render::{TextureCreator, WindowCanvas};
-use sdl2::sys::mixer::MIX_CHANNELS;
 use sdl2::ttf::Sdl2TtfContext;
 use sdl2::{AudioSubsystem, EventPump, Sdl};
 use sdl2::rect::Rect;
@@ -23,7 +22,7 @@ use crate::assets::sprites::Sprites;
 use crate::game::action::Direction;
 use crate::game::event::GameEvent;
 use crate::game::{Game, game};
-use crate::game::physics::Body;
+use crate::game::physics::{Body, BodyType};
 use crate::game::scale::PhysicsScale;
 use crate::game_input::{GameInputContext, GameInputKey};
 use crate::{characters, particles};
@@ -186,7 +185,7 @@ impl KeyboardZoo {
                     GameInputKey::SpawnRandomAsset => game.spawn_asset(sprites.pick_random_sprite()),
                     GameInputKey::SpawnCharacter(character) => game.spawn_character(character),
                     GameInputKey::SpawnRandomCharacter => game.spawn_character(rng.gen()),
-                    GameInputKey::Nuke => animations.nuke(game.bodies().into_iter().map(|b| b.id()).collect()),
+                    GameInputKey::Nuke => animations.nuke(game.bodies().into_iter().map(|b| b.id).collect()),
                     GameInputKey::Explosion => game.explosion(),
                     GameInputKey::Quit => break 'game,
                 }
@@ -202,28 +201,30 @@ impl KeyboardZoo {
             for event in game.update(physics_delta).into_iter() {
                 match event {
                     GameEvent::Spawned(body) => {
-                        match body {
-                            Body::Asset(asset_body) => {
-                                sound.play_letter(asset_body.asset_character());
-                                fg_particles.add_source(sprite_lattice_source(asset_body, &self.particle_scale));
+                        match body.body_type {
+                            BodyType::Alphanumeric(alphanumeric_body) => {
+                                sound.play_alphanumeric(alphanumeric_body.alphanumeric);
+                                fg_particles.add_source(sprite_lattice_source(body.polygons, &self.particle_scale));
                             }
-                            Body::Character(character_body) => {
-                                character_sound.play_create(character_body.character().character_type())?;
+                            BodyType::Character(character_body) => {
+                                character_sound.play_create(character_body.character_type())?;
                             }
+                            _ => {}
                         }
                     }
                     GameEvent::Destroy(body) => {
-                        match body {
-                            Body::Asset(asset_body) => {
-                                for triangle in asset_body.polygons().iter() {
-                                    fg_particles.add_source(sprite_triangle_source(*triangle, &self.particle_scale));
+                        match body.body_type {
+                            BodyType::Alphanumeric(_) => {
+                                for triangle in body.polygons.into_iter() {
+                                    fg_particles.add_source(sprite_triangle_source(triangle, &self.particle_scale));
                                 }
                                 sound.play_destroy();
                             }
-                            Body::Character(character_body) => {
-                                character_sound.play_destroy(character_body.character().character_type())?;
+                            BodyType::Character(character_body) => {
+                                character_sound.play_destroy(character_body.character_type())?;
                                 // TODO particles?
                             }
+                            _ => {}
                         }
 
                     }
@@ -270,13 +271,14 @@ impl KeyboardZoo {
     fn draw_bodies(&self, sprites: &mut Sprites, character_render: &mut CharacterRender, bodies: Vec<Body>) -> Result<(), String> {
         let mut canvas = self.canvas.borrow_mut();
         for body in bodies.into_iter() {
-            match body {
-                Body::Asset(asset_body) => {
-                    sprites.draw_sprite(&mut canvas, asset_body)?;
+            match body.body_type {
+                BodyType::Alphanumeric(asset_body) => {
+                    sprites.draw_sprite(&mut canvas, &asset_body.name, body.aabb, body.angle)?;
                 }
-                Body::Character(character_body) => {
-                    character_render.draw_character(&mut canvas, character_body)?;
+                BodyType::Character(character) => {
+                    character_render.draw_character(&mut canvas, character, body.aabb, body.angle)?;
                 }
+                _ => {}
             }
 
         }
