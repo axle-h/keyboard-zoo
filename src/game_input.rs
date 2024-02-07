@@ -3,7 +3,7 @@ use sdl2::keyboard::Keycode;
 use std::collections::HashMap;
 use std::time::Duration;
 use crate::characters::CharacterType;
-use crate::config::InputConfig;
+use crate::config::{InputConfig, PlayerInputConfig};
 
 const AUTO_REPEAT_DELAY: Duration = Duration::from_millis(300);
 const AUTO_REPEAT_ITERATION: Duration = Duration::from_millis(25);
@@ -167,15 +167,22 @@ impl GameInputContext {
             HashMap::new()
         };
 
-        map.insert(config.spawn_character, GameInputKey::SpawnRandomCharacter);
-        map.insert(config.spawn_asset, GameInputKey::SpawnRandomAsset);
+        Self::add_player_controls(config.player1, &mut map);
+        if let Some(player2) = config.player2 {
+            Self::add_player_controls(player2, &mut map);
+        }
+
+        map
+    }
+
+    fn add_player_controls(config: PlayerInputConfig, map: &mut HashMap<Keycode, GameInputKey>) {
         map.insert(config.up, GameInputKey::Up);
         map.insert(config.down, GameInputKey::Down);
         map.insert(config.left, GameInputKey::Left);
         map.insert(config.right, GameInputKey::Right);
+        map.insert(config.spawn_character, GameInputKey::SpawnRandomCharacter);
+        map.insert(config.spawn_asset, GameInputKey::SpawnRandomAsset);
         map.insert(config.nuke, GameInputKey::Nuke);
         map.insert(config.explosion, GameInputKey::Explosion);
-
-        map
     }
 }

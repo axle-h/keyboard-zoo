@@ -1,7 +1,7 @@
 # Keyboard Zoo
 
 TODO
-* 2 player duplicate controls
+* quit from toddler sandbox
 * redo create sounds (my/esme's voice?)
 * shuffle between 3-4 bg particle displays
 * Characters

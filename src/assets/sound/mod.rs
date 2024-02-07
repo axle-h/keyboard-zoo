@@ -39,7 +39,7 @@ impl Sound {
     }
 
     pub fn new(config: AudioConfig) -> Result<Self, String> {
-        let letter = ('a' ..= 'z')
+        let letter = ('a' ..= 'z').chain('0' ..= '9')
             .map(|ch| (ch, config.load_chunk(letter_sound(ch)).unwrap())).collect();
 
         let destroy = Self::load_sounds(&config, &effects::destroy::ASSETS);

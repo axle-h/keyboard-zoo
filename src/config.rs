@@ -40,7 +40,12 @@ impl Config {
 pub struct InputConfig {
     pub run_toddler_sandbox: bool,
     pub baby_smash_mode: bool,
+    pub player1: PlayerInputConfig,
+    pub player2: Option<PlayerInputConfig>,
+}
 
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub struct PlayerInputConfig {
     #[serde(with = "KeycodeDef")]
     pub up: Keycode,
     #[serde(with = "KeycodeDef")]
@@ -112,14 +117,17 @@ impl Default for Config {
             input: InputConfig {
                 run_toddler_sandbox: false,
                 baby_smash_mode: true,
-                up: Keycode::Up,
-                down: Keycode::Down,
-                left: Keycode::Left,
-                right: Keycode::Right,
-                nuke: Keycode::Backspace,
-                explosion: Keycode::Space,
-                spawn_character: Keycode::RShift,
-                spawn_asset: Keycode::Return,
+                player1: PlayerInputConfig {
+                    up: Keycode::Up,
+                    down: Keycode::Down,
+                    left: Keycode::Left,
+                    right: Keycode::Right,
+                    nuke: Keycode::Backspace,
+                    explosion: Keycode::Space,
+                    spawn_character: Keycode::RShift,
+                    spawn_asset: Keycode::Return,
+                },
+                player2: None
             },
             video: VideoConfig {
                 mode: VideoMode::Window {
