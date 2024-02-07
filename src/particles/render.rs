@@ -46,6 +46,10 @@ impl<'a> ParticleRender<'a> {
         self.particles.clear();
     }
 
+    pub fn clear_sources(&mut self) {
+        self.particles.sources.clear();
+    }
+
     pub fn add_source(&mut self, source: Box<dyn ParticleSource>) {
         self.particles.sources.push(source);
     }

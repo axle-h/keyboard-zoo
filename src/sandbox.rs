@@ -1,10 +1,10 @@
 use rdev::{grab, Event, EventType, Key, GrabError};
 
 pub fn sandbox() -> Result<(), String> {
-    println!("running toddler sandbox");
     let callback = |event: Event| -> Option<Event> {
         match event.event_type {
             EventType::KeyPress(key) | EventType::KeyRelease(key) => {
+                // all control keys except escape are trapped
                 match key {
                     Key::Alt
                     | Key::AltGr

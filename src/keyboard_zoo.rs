@@ -27,7 +27,7 @@ use crate::game::scale::PhysicsScale;
 use crate::game_input::{GameInputContext, GameInputKey};
 use crate::{characters, particles};
 use crate::particles::Particles;
-use crate::particles::prescribed::{fireworks, orbit, sprite_lattice_source, sprite_triangle_source};
+use crate::particles::prescribed::{fireworks, orbit, PrescribedParticles, space_race, sprite_lattice_source, sprite_triangle_source};
 use crate::particles::render::ParticleRender;
 use crate::particles::source::ParticleSource;
 
@@ -120,22 +120,6 @@ impl KeyboardZoo {
         self.config.input.run_toddler_sandbox
     }
 
-    fn orbit_particle_source(&self) -> Box<dyn ParticleSource> {
-        let (window_width, window_height) = self.canvas.borrow().window().size();
-        orbit(
-            Rect::new(0, 0, window_width, window_height),
-            &self.particle_scale,
-        )
-    }
-
-    fn fireworks_source(&self) -> Box<dyn ParticleSource> {
-        let (window_width, window_height) = self.canvas.borrow().window().size();
-        fireworks(
-            Rect::new(0, 0, window_width, window_height),
-            &self.particle_scale,
-        )
-    }
-
     pub fn game(&mut self) -> Result<(), String> {
         let mut fg_particles = ParticleRender::new(
             Particles::new(MAX_FOREGROUND_PARTICLES),
@@ -165,13 +149,24 @@ impl KeyboardZoo {
 
         fg_particles.clear();
         bg_particles.clear();
-        bg_particles.add_source(self.orbit_particle_source());
-        //bg_particles.add_source(self.fireworks_source());
+        let mut bg_source = PrescribedParticles::Orbit;
+        bg_particles.add_source(bg_source.build(&self.canvas.borrow(), &self.particle_scale));
+        let mut until_next_particle_swap = bg_source.display_for();
 
         let mut rng = thread_rng();
         sound.play_music()?;
         'game: loop {
             let delta = frame_rate.update()?;
+
+            until_next_particle_swap = match until_next_particle_swap.checked_sub(delta) {
+                None => {
+                    bg_source = bg_source.into_next();
+                    bg_particles.clear_sources();
+                    bg_particles.add_source(bg_source.build(&self.canvas.borrow(), &self.particle_scale));
+                    bg_source.display_for()
+                }
+                Some(next) => next
+            };
 
             for key in inputs.update(delta, self.event_pump.poll_iter()) {
                 match key {

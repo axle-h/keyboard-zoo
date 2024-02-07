@@ -8,8 +8,49 @@ use crate::particles::source::{AggregateParticleSource, ParticleModulation, Part
 use sdl2::pixels::Color;
 use sdl2::rect::{Point, Rect};
 use std::time::Duration;
+use sdl2::render::WindowCanvas;
+use strum_macros::EnumIter;
 use crate::game::physics::Body;
 use crate::game::polygon::{Circle, Triangle};
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[repr(u8)]
+pub enum PrescribedParticles {
+    Orbit = 0,
+    Fireworks = 1,
+    SpaceRace = 2
+}
+
+impl PrescribedParticles {
+    pub fn into_next(self) -> Self {
+        let ordinal = self as u8;
+        let next = (ordinal + 1) % 3;
+        match next {
+            0 => Self::Orbit,
+            1 => Self::Fireworks,
+            2 => Self::SpaceRace,
+            _ => unreachable!()
+        }
+    }
+
+    pub fn display_for(&self) -> Duration {
+        match self {
+            PrescribedParticles::Orbit => Duration::from_millis(20000),
+            PrescribedParticles::Fireworks => Duration::from_millis(10000),
+            PrescribedParticles::SpaceRace => Duration::from_millis(10000),
+        }
+    }
+
+    pub fn build(&self, canvas: &WindowCanvas, scale: &Scale) -> Box<dyn ParticleSource> {
+        let (window_width, window_height) = canvas.window().size();
+        let window = Rect::new(0, 0, window_width, window_height);
+        match self {
+            PrescribedParticles::Orbit => orbit(window, scale),
+            PrescribedParticles::Fireworks => fireworks(window, scale),
+            PrescribedParticles::SpaceRace => space_race(window, scale)
+        }
+    }
+}
 
 pub fn explosion<P : Into<Point>>(center: P, scale: &Scale) -> Box<dyn ParticleSource> {
     let source = scale.polygon_lattice_source(&[Circle::new(100, center)]);
@@ -26,6 +67,33 @@ pub fn explosion<P : Into<Point>>(center: P, scale: &Scale) -> Box<dyn ParticleS
         .with_velocity((Vec2D::new(0.0, 0.0), Vec2D::new(0.25, 0.25)))
         .with_fade_out((1.5, 0.5))
         .into_box()
+}
+
+pub fn space_race(window: Rect, scale: &Scale) -> Box<dyn ParticleSource> {
+    let modulation = ParticleModulation::Constant {
+        count: 10,
+        step: Duration::from_millis(100),
+    };
+    let rect = Rect::new(
+        window.left() - 50,
+        window.top(),
+        50,
+        window.height(),
+    );
+
+    RandomParticleSource::new(scale.rect_source(rect), modulation)
+        .with_properties(ProbabilityTable::identity(ParticleProperties::new(
+            ParticleSprite::all_sprite_based().as_slice(),
+            (
+                ParticleColor::rgb(0.7, 0.4, 0.4),
+                ParticleColor::rgb(0.3, 0.3, 0.3),
+            ),
+            1.5,
+            (0.0, 30.0),
+        )))
+        .with_velocity((Vec2D::new(0.2, 0.0), Vec2D::new(0.05, 0.02)))
+        .into_box()
+
 }
 
 pub fn fireworks(window: Rect, scale: &Scale) -> Box<dyn ParticleSource> {

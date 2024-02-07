@@ -7,6 +7,7 @@ use crate::config::{InputConfig, PlayerInputConfig};
 
 const AUTO_REPEAT_DELAY: Duration = Duration::from_millis(300);
 const AUTO_REPEAT_ITERATION: Duration = Duration::from_millis(25);
+const SANDBOX_QUIT_DELAY: Duration = Duration::from_millis(2000);
 
 #[derive(Hash, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GameInputKey {
@@ -47,14 +48,16 @@ enum KeyState {
 
 pub struct GameInputContext {
     current: HashMap<GameInputKey, GameInput>,
-    input_map: HashMap<Keycode, GameInputKey>
+    input_map: HashMap<Keycode, GameInputKey>,
+    sandbox_mode: bool,
 }
 
 impl GameInputContext {
     pub fn new(config: InputConfig) -> Self {
         Self {
             current: HashMap::new(),
-            input_map: Self::input_map(config)
+            sandbox_mode: config.run_toddler_sandbox,
+            input_map: Self::input_map(config),
         }
     }
 
@@ -75,7 +78,9 @@ impl GameInputContext {
                     KeyState::Down(key) => {
                         let event = GameInput::new(key);
                         self.current.insert(key, event);
-                        result.push(key);
+                        if key != GameInputKey::Quit || !self.sandbox_mode {
+                            result.push(key);
+                        }
                     }
                     KeyState::Up(key) => {
                         self.current.remove(&key);
@@ -86,7 +91,9 @@ impl GameInputContext {
 
         // check for any held keys that have triggered a repeat
         for event in self.current.values_mut() {
-            if matches!(event.key, GameInputKey::Up | GameInputKey::Down | GameInputKey::Left | GameInputKey::Right) {
+            if event.key == GameInputKey::Quit && event.duration >= SANDBOX_QUIT_DELAY {
+                result.push(GameInputKey::Quit);
+            } else if matches!(event.key, GameInputKey::Up | GameInputKey::Down | GameInputKey::Left | GameInputKey::Right) {
                 // check auto-repeat
                 if event.repeating {
                     if event.duration >= AUTO_REPEAT_ITERATION {
@@ -126,6 +133,7 @@ impl GameInputContext {
     fn input_map(config: InputConfig) -> HashMap<Keycode, GameInputKey> {
         let mut map = if config.baby_smash_mode {
             HashMap::from([
+                (config.quit, GameInputKey::Quit),
                 (Keycode::A, GameInputKey::SpawnAsset('A')),
                 (Keycode::B, GameInputKey::SpawnAsset('B')),
                 (Keycode::C, GameInputKey::SpawnAsset('C')),
@@ -164,7 +172,9 @@ impl GameInputContext {
                 (Keycode::Num9, GameInputKey::SpawnAsset('9'))
             ])
         } else {
-            HashMap::new()
+            HashMap::from([
+                (config.quit, GameInputKey::Quit),
+            ])
         };
 
         Self::add_player_controls(config.player1, &mut map);

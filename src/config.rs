@@ -40,6 +40,8 @@ impl Config {
 pub struct InputConfig {
     pub run_toddler_sandbox: bool,
     pub baby_smash_mode: bool,
+    #[serde(with = "KeycodeDef")]
+    pub quit: Keycode,
     pub player1: PlayerInputConfig,
     pub player2: Option<PlayerInputConfig>,
 }
@@ -117,6 +119,7 @@ impl Default for Config {
             input: InputConfig {
                 run_toddler_sandbox: false,
                 baby_smash_mode: true,
+                quit: Keycode::Escape,
                 player1: PlayerInputConfig {
                     up: Keycode::Up,
                     down: Keycode::Down,
