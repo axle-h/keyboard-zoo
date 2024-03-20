@@ -1,0 +1,61 @@
+[package]
+name = "keyboard-zoo"
+version = "0.1.0"
+edition = "2021"
+resolver = "2"
+build="build/mod.rs"
+
+[features]
+default = ["compress_sprites"]
+compress_sprites = ["png", "imagequant", "oxipng"]
+
+[package.metadata.vcpkg]
+git = "https://github.com/microsoft/vcpkg"
+tag = "2023.11.20"
+dependencies = ["sdl2", "sdl2-image", "sdl2-gfx", "sdl2-mixer", "sdl2-ttf"]
+
+[package.metadata.vcpkg.target]
+x86_64-pc-windows-msvc = { triplet = "x64-windows-static-md" }
+
+[build-dependencies]
+build-info-build = "0.0.34"
+embed-resource = "2.4.1"
+image = "0.24.8"
+imageproc = "0.23.0"
+simplify-polyline = "0.5.0"
+poly2tri = "0.1.0"
+itertools = "0.12"
+serde = { version = "1.0", default-features = false, features = ["derive"] }
+serde_derive = "1.0"
+serde_json = "1.0"
+texture_packer = "0.27"
+rayon = "1.8.1"
+zstd = "0.13.0"
+imagequant = { version = "4.3.0", optional = true }
+png = { version = "0.17.11", optional = true }
+oxipng = { version = "9.0.0", optional = true }
+
+[dependencies]
+sdl2 = { version = "0.36.0", default-features = false, features = ["static-link","use-vcpkg","image","gfx","mixer","ttf"] }
+rdev = { version = "0.5.3", features = ["unstable_grab"] }
+serde = { version = "1.0", default-features = false, features = ["derive"] }
+serde_derive = "1.0"
+confy = { version = "0.6.0", default-features = false, features = ["yaml_conf"] }
+itertools = "0.12"
+titlecase = "2.2.1"
+build-info = { version = "0.0.34", default-features = false, features = [] }
+serde_json = "1.0"
+box2d-rs = "0.0.4"
+rand = "0.8.5"
+strum = { version = "0.25", features = ["derive"] }
+strum_macros = "0.25"
+zstd = "0.13.0"
+
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3.9", features = ["wincon"] }
+
+[target.'cfg(unix)'.dependencies]
+fork = "0.1.22"
+
+[profile.release]
+strip = "symbols"
