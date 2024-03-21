@@ -38,7 +38,7 @@ Config is stored in yaml:
 
 * Windows: `$HOME\AppData\Roaming\rs.keyboard-zoo\`
 * macOS: `$HOME/Library/Application\ Support/rs.keyboard-zoo/`
-* Linux: `$XDG_CONFIG_HOME/rustris` or `$HOME/.config/rs.keyboard-zoo`
+* Linux: `$XDG_CONFIG_HOME/rs.keyboard-zoo` or `$HOME/.config/rs.keyboard-zoo`
 
 Most of it you can ignore except:
 
@@ -47,14 +47,14 @@ Most of it you can ignore except:
 
 ### Video Mode
 
-* `Window` (default) - note if your screen is not at least 720p then rustris may not even load on first attempt.
+* `Window` (default) - note if your screen is not at least 720p then keyboard-zoo may not even load on first attempt.
     ```yaml
     video:
       mode: !Window
         width: 1280
         height: 720
     ```
-* `FullScreen` - native fullscreen (recommended), note rustris should scale to any weird resolution but was designed for 1080p & 4k.
+* `FullScreen` - native fullscreen (recommended), note keyboard-zoo should scale to any weird resolution but was designed for 1080p & 4k.
     ```yaml
     video:
       mode: !FullScreen
